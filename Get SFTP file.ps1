@@ -153,11 +153,6 @@ Process {
         $fileDownloadFolders = @{}
 
         $results = ForEach ($sftpFile in $sftpFiles) {
-            if ($sftpFile.Name -match '^\.$|^\.\.$') {  
-                # ignore symlinks '.' and '..'
-                Continue
-            }
-
             try {
                 $result = [PSCustomObject]@{
                     FileName          = $sftpFile.Name
