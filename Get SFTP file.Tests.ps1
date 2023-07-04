@@ -183,6 +183,8 @@ Describe 'when all tests pass' {
         $testData[1].Destination.Folder | Should -Exist
     }
     It 'the files are downloaded to the correct folder' {
+        Should -Invoke Get-SFTPItem -Times 2 -Exactly -Scope Describe
+
         $testData[0].Destination.FilePath | Should -Exist
         $testData[1].Destination.FilePath | Should -Exist
     }
