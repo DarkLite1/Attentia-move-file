@@ -1,5 +1,5 @@
 #Requires -Modules Pester
-#Requires -Modules Toolbox.EventLog, Toolbox.HTML, Toolbox.General
+#Requires -Modules Toolbox.EventLog, Toolbox.HTML
 #Requires -Version 5.1
 
 BeforeAll {

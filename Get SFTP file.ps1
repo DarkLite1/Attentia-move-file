@@ -26,6 +26,8 @@ Param (
     [String]$ScriptName,
     [Parameter(Mandatory)]
     [String]$DownloadFolder,
+    [Parameter(Mandatory)]
+    [String[]]$MailTo, 
     [HashTable]$Sftp = @{
         Credential   = @{
             UserName = $env:ATTENTIA_SFTP_USERNAME_TEST
@@ -34,7 +36,6 @@ Param (
         ComputerName = 'ftp.attentia.be'
         Path         = '/BAND'
     },
-    [String[]]$MailTo = @('bel.shared.aggsagrex.alpha@heidelbergcement.com'), 
     [String]$LogFolder = "$env:POWERSHELL_LOG_FOLDER\Application specific\Attentia\$ScriptName",
     [String[]]$ScriptAdmin = @(
         $env:POWERSHELL_SCRIPT_ADMIN,
