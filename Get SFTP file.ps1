@@ -164,17 +164,14 @@ Process {
                 }
                 
                 #region Create file download folder
-                $folderName = $result.FileName.SubString(2, 3)
+                $folderName = $result.FileName.SubString(
+                    6, $result.FileName.Length - 10
+                )
 
                 if (-not $fileDownloadFolders.ContainsKey($folderName)) {
                     try {
-                        $joinParams = @{
-                            Path      = $DownloadFolder
-                            ChildPath = $folderName
-                        }
-                        
                         $testPathParams = @{
-                            Path        = Join-Path @joinParams
+                            Path        = Join-Path $DownloadFolder $folderName
                             PathType    = 'Container'
                             ErrorAction = 'Stop'
                         }
@@ -242,7 +239,7 @@ Process {
         $M = 'Close SFTP session'
         Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
             
-        Remove-SFTPSession -SessionId $sftpSession.SessionID  
+        Remove-SFTPSession -SessionId $sftpSession.SessionID -ErrorAction Ignore
         #endregion
     }
     Catch {
