@@ -76,8 +76,15 @@ Begin {
             Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
 
             $params = @{
+                String      = $Sftp.Credential.Password 
+                AsPlainText = $true
+                Force       = $true
+            }
+            $secureStringPassword = ConvertTo-SecureString @params
+
+            $params = @{
                 TypeName     = 'System.Management.Automation.PSCredential'
-                ArgumentList = $Sftp.Credential.UserName, $Sftp.Credential.Password
+                ArgumentList = $Sftp.Credential.UserName, $secureStringPassword
                 ErrorAction  = 'Stop'
             }
             $sftpCredential = New-Object @params
