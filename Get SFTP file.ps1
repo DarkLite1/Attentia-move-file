@@ -34,7 +34,7 @@ Param (
             Password = $env:ATTENTIA_SFTP_PASSWORD_TEST
         }
         ComputerName = 'ftp.attentia.be'
-        Path         = '/BAND'
+        Path         = '/Out/BAND'
     },
     [String]$LogFolder = "$env:POWERSHELL_LOG_FOLDER\Application specific\Attentia\$ScriptName",
     [String[]]$ScriptAdmin = @(
@@ -121,21 +121,28 @@ Process {
             throw "Failed creating an SFTP session to '$($Sftp.ComputerName)': $_"
         }
         #endregion
+
+        $sftpSessionParams = @{
+            SessionId   = $sftpSession.SessionID
+            Path        = $Sftp.Path
+            ErrorAction = 'Stop'
+        }
+
+        #region Test SFTP path
+        if (-not (Test-SFTPPath @sftpSessionParams)) {
+            throw "SFTP path '$($Sftp.Path)' not found"
+        }    
+        #endregion
         
         #region Get SFTP file list
         try {
-            $M = 'Get SFTP file list'
+            $M = "Get SFTP file list in path '{0}'" -f $Sftp.Path
             Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
 
-            $params = @{
-                SessionId   = $sftpSession.SessionID
-                Path        = $Sftp.Path
-                ErrorAction = 'Stop'
-            }
-            $sftpFiles = Get-SFTPChildItem @params
+            $sftpFiles = Get-SFTPChildItem @sftpSessionParams
         }
         catch {
-            throw "Failed retrieving the file list on the SFTP host '$($Sftp.ComputerName)': $_"
+            throw "Failed retrieving the SFTP file list on from computer name '$($Sftp.ComputerName)' in path '$($Sftp.Path)': $_"
         }
         #endregion
   
