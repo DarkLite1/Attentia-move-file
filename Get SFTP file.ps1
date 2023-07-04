@@ -142,7 +142,7 @@ Process {
             $sftpFiles = Get-SFTPChildItem @sftpSessionParams
         }
         catch {
-            throw "Failed retrieving the SFTP file list on from computer name '$($Sftp.ComputerName)' in path '$($Sftp.Path)': $_"
+            throw "Failed retrieving the SFTP file list from '$($Sftp.ComputerName)' in path '$($Sftp.Path)': $_"
         }
         #endregion
   
@@ -158,7 +158,7 @@ Process {
                     FileName          = $sftpFile.Name
                     FileLastWriteTime = $sftpFile.LastWriteTime 
                     Downloaded        = $false
-                    DownloadDateTime  = $null
+                    DownloadedOn      = $null
                     DownloadFolder    = $null
                     Error             = $null
                 }
@@ -216,7 +216,7 @@ Process {
                     }
                     Get-SFTPItem @params
     
-                    $result.DownloadDateTime = Get-Date
+                    $result.DownloadedOn = Get-Date
                     $result.Downloaded = $true    
                 }
                 catch {
