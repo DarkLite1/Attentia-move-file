@@ -16,18 +16,20 @@
 .PARAMETER Password
     The password used to authenticate to the SFTP server.
 
-.PARAMETER Path
+.PARAMETER DownloadFolder
     The destination folder where the file will be saved.
 #>
 
 [CmdLetBinding()]
 Param (
-    [String]$ScriptName = 'Get SFTP file (BEL)',
-    [String]$Path,
+    [Parameter(Mandatory)]
+    [String]$ScriptName,
+    [Parameter(Mandatory)]
+    [String]$DownloadFolder,
     [HashTable]$Sftp = @{
         Credential   = @{
-            UserName = $env:ATTENTIA_SFTP_USERNAME
-            Password = $env:ATTENTIA_SFTP_PASSWORD
+            UserName = $env:ATTENTIA_SFTP_USERNAME_TEST
+            Password = $env:ATTENTIA_SFTP_PASSWORD_TEST
         }
         ComputerName = 'ftp.attentia.be'
         Path         = '/BAND'
@@ -47,31 +49,23 @@ Begin {
         Write-EventLog @EventStartParams
 
         #region Create log folder
-        $logParams = @{
-            LogFolder    = New-Item -Path $LogFolder -ItemType 'Directory' -Force -ErrorAction 'Stop'
-            Name         = $ScriptName
-            Date         = 'ScriptStartTime'
-            NoFormatting = $true
+        try {
+            $logParams = @{
+                LogFolder    = New-Item -Path $LogFolder -ItemType 'Directory' -Force -ErrorAction 'Stop'
+                Name         = $ScriptName
+                Date         = 'ScriptStartTime'
+                NoFormatting = $true
+            }
+            $logFile = New-LogFileNameHC @LogParams
         }
-        $logFile = New-LogFileNameHC @LogParams
+        Catch {
+            throw "Failed creating the log folder '$LogFolder': $_"
+        }
         #endregion
 
-        #region Create destination folder
-        if (-not (Test-Path -Path $Path -PathType 'Container')) { 
-            try {
-                $M = "Create download folder '$Path'"
-                Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
-        
-                $params = @{
-                    Path        = $Path
-                    ItemType    = 'Directory'
-                    ErrorAction = 'Stop'
-                }
-                $null = New-Item @params
-            }
-            catch {
-                throw "Failed creating download folder '$Path': $_"
-            }
+        #region Test download folder
+        if (-not (Test-Path -Path $DownloadFolder -PathType 'Container')) { 
+            throw "Download folder '$DownloadFolder' not found."
         }
         #endregion
 
