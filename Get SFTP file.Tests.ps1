@@ -188,4 +188,7 @@ Describe 'when all tests pass' {
         $testData[0].Destination.FilePath | Should -Exist
         $testData[1].Destination.FilePath | Should -Exist
     }
+    It 'the SFTP session is closed' {
+        Should -Invoke Remove-SFTPSession -Times 1 -Exactly -Scope Describe
+    }
 } -Tag test
