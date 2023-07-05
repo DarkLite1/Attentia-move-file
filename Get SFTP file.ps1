@@ -253,6 +253,7 @@ Process {
 
 End {
     try {
+        #region Error counters
         $counter = @{
             FilesOnServer   = (
                 $results | Measure-Object
@@ -267,6 +268,8 @@ End {
                 $Error.Exception.Message | Measure-Object
             ).Count
         }
+        #endregion
+        
     }
     catch {
         Write-Warning $_
