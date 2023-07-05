@@ -152,7 +152,7 @@ Process {
 
         $fileDownloadFolders = @{}
 
-        $results = ForEach ($sftpFile in $sftpFiles) {
+        [array]$results = ForEach ($sftpFile in $sftpFiles) {
             try {
                 $result = [PSCustomObject]@{
                     FileName          = $sftpFile.Name
@@ -253,23 +253,112 @@ Process {
 
 End {
     try {
+        $mailParams = @{}
+
+        #region Create Excel worksheet 
+        if ($results) {
+            $M = "Export $($results.Count) rows to Excel"
+            Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
+            
+            $excelParams = @{
+                Path          = $logFile + ' - Log.xlsx'
+                AutoSize      = $true
+                FreezeTopRow  = $true
+                WorksheetName = 'SFTP_Files'
+                TableName     = 'SFTP_Files'
+            }
+            $results | Export-Excel @excelParams
+
+            $mailParams.Attachments = $excelParams.Path
+        }
+        #endregion
+
+
+        #region Send mail to user
+
         #region Error counters
         $counter = @{
-            FilesOnServer   = (
-                $results | Measure-Object
-            ).Count
-            FilesDownloaded = (
-                $results | Where-Object { $_.Downloaded } | Measure-Object
-            ).Count
-            DownloadErrors  = (
-                $results | Where-Object { $_.Error } | Measure-Object
-            ).Count
+            FilesOnServer   = $results.Count
+            FilesDownloaded = $results.Where({ $_.Downloaded }).Count
+            DownloadErrors  = $results.Where({ $_.Error }).Count
             SystemErrors    = (
                 $Error.Exception.Message | Measure-Object
             ).Count
         }
         #endregion
+
+        #region Mail subject and priority
+        $mailParams.Priority = 'Normal'
+        $mailParams.Subject = '{0}/{1} file{2} downloaded' -f 
+        $counter.FilesDownloaded, $counter.FilesOnServer,
+        (
+            if ($counter.FilesOnServer -ne 1) { 's' }
+        )
         
+        if (
+            $totalErrorCount = $counter.DownloadErrors + $counter.SystemErrors
+        ) {
+            $mailParams.Priority = 'High'
+            $mailParams.Subject += ", $totalErrorCount error{0}" -f $(
+                if ($totalErrorCount -ne 1) { 's' }
+            )
+        }
+        #endregion
+        
+        #region Create html lists
+        $systemErrorsHtmlList = if ($counter.SystemErrors) {
+            "<p>Detected <b>{0} non terminating error{1}</b>:{2}</p>" -f $counter.SystemErrors, 
+            $(
+                if ($counter.SystemErrors -ne 1) { 's' }
+            ),
+            $(
+                $Error.Exception.Message | Where-Object { $_ } | 
+                ConvertTo-HtmlListHC
+            )
+        }
+
+        $summaryHtmlTable = "
+            <table>
+                <tr>
+                    <th colspan=`"2`">$($Sftp.ComputerName) - $($Sftp.Path)</th>
+                </tr>
+                <tr>
+                    <td>Files on server</td>
+                    <td>$($counter.FilesOnServer)</td>
+                </tr>
+                <tr>
+                    <td>Files downloaded</td>
+                    <td>$($counter.FilesDownloaded)</td>
+                </tr>
+                <tr>
+                    <td>Errors</td>
+                    <td>$($counter.DownloadErrors)</td>
+                </tr>
+            </table>
+        "
+        #endregion
+                
+        $mailParams += @{
+            To        = $MailTo
+            Bcc       = $ScriptAdmin
+            Message   = "
+                        $systemErrorsHtmlList
+                        <p>Summary:</p>
+                        $summaryHtmlTable"
+            LogFolder = $LogParams.LogFolder
+            Header    = $ScriptName
+            Save      = $LogFile + ' - Mail.html'
+        }
+        
+        if ($mailParams.Attachments) {
+            $mailParams.Message += 
+            "<p><i>* Check the attachment for details</i></p>"
+        }
+           
+        Get-ScriptRuntimeHC -Stop
+        Send-MailHC @mailParams
+        #endregion
+
     }
     catch {
         Write-Warning $_
