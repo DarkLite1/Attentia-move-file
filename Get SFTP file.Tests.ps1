@@ -9,6 +9,7 @@ BeforeAll {
         MailTo         = 'bob@conotoso.com'
         DownloadFolder = New-Item 'TestDrive:/folder' -ItemType Directory
         LogFolder      = New-Item 'TestDrive:/log' -ItemType Directory
+        ScriptAdmin    = 'admin@conotoso.com'
     }
 
     Mock Get-SFTPChildItem
@@ -237,4 +238,14 @@ Describe 'when all tests pass' {
             }
         }
     }
-} -Tag test
+    It 'send a summary mail to the user' {
+        Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
+            ($To -eq $testParams.MailTo) -and
+            ($Bcc -eq $testParams.ScriptAdmin) -and
+            ($Priority -eq 'Normal') -and
+            ($Subject -eq '2/2 files downloaded') -and
+            ($Attachments -like '*- Log.xlsx') -and
+            ($Message -like "*table*Files on server*2*Files downloaded*2*Errors*0*")
+        }
+    } -Tag test
+}

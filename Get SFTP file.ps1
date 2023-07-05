@@ -48,7 +48,8 @@ Begin {
         Get-ScriptRuntimeHC -Start
         Import-EventLogParamsHC -Source $ScriptName
         Write-EventLog @EventStartParams
-
+        $Error.Clear()
+        
         #region Create log folder
         try {
             $logParams = @{
@@ -291,7 +292,7 @@ End {
         $mailParams.Priority = 'Normal'
         $mailParams.Subject = '{0}/{1} file{2} downloaded' -f 
         $counter.FilesDownloaded, $counter.FilesOnServer,
-        (
+        $(
             if ($counter.FilesOnServer -ne 1) { 's' }
         )
         
