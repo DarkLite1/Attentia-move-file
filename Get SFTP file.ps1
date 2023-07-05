@@ -220,12 +220,13 @@ Process {
                     $result.Downloaded = $true    
                 }
                 catch {
-                    throw "Failed downloading file '$($result.FileName)': $_"
+                    throw "Failed downloading file: $_"
                 }
                 #endregion
             }
             catch {
-                Write-Warning $_
+                $M = "Failed downloading file '$($result.FileName)': $_"
+                Write-Warning $M
                 $result.Error = $_
                 $Error.RemoveAt(0)
             }
@@ -252,7 +253,15 @@ Process {
 
 End {
     try {
-        
+        $counter = @{
+            FilesOnServer   = ($results | Measure-Object).Count
+            FilesDownloaded = (
+                $results | Where-Object { $_.Downloaded } | 
+                Measure-Object).Count
+            DownloadErrors  = (
+                $results | Where-Object { $_.Error } | 
+                Measure-Object).Count
+        }
     }
     catch {
         Write-Warning $_
