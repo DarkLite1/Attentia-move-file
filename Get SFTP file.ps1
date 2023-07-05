@@ -254,13 +254,18 @@ Process {
 End {
     try {
         $counter = @{
-            FilesOnServer   = ($results | Measure-Object).Count
+            FilesOnServer   = (
+                $results | Measure-Object
+            ).Count
             FilesDownloaded = (
-                $results | Where-Object { $_.Downloaded } | 
-                Measure-Object).Count
+                $results | Where-Object { $_.Downloaded } | Measure-Object
+            ).Count
             DownloadErrors  = (
-                $results | Where-Object { $_.Error } | 
-                Measure-Object).Count
+                $results | Where-Object { $_.Error } | Measure-Object
+            ).Count
+            SystemErrors    = (
+                $Error.Exception.Message | Measure-Object
+            ).Count
         }
     }
     catch {
