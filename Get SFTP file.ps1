@@ -264,8 +264,8 @@ End {
                 Path          = $logFile + ' - Log.xlsx'
                 AutoSize      = $true
                 FreezeTopRow  = $true
-                WorksheetName = 'SFTP_Files'
-                TableName     = 'SFTP_Files'
+                WorksheetName = 'Overview'
+                TableName     = 'Overview'
             }
             $results | Export-Excel @excelParams
 

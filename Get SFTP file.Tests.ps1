@@ -135,7 +135,7 @@ Describe 'when all tests pass' {
             [PSCustomObject]@{
                 Name          = '123456Brussels.txt'
                 FullName      = '\folder\123456Brussels.txt'
-                LastWriteTime = Get-Date
+                LastWriteTime = (Get-Date).AddDays(-3)
                 Destination   = @{
                     Folder   = Join-Path $testParams.DownloadFolder 'Brussels'
                     FilePath = Join-Path $testParams.DownloadFolder 'Brussels\123456Brussels.txt'
@@ -144,7 +144,7 @@ Describe 'when all tests pass' {
             [PSCustomObject]@{
                 Name          = '123456London.txt'
                 FullName      = '\folder\123456London.txt'
-                LastWriteTime = Get-Date
+                LastWriteTime = (Get-Date).AddDays(-4)
                 Destination   = @{
                     Folder   = Join-Path $testParams.DownloadFolder 'London'
                     FilePath = Join-Path $testParams.DownloadFolder 'London\123456London.txt'
@@ -190,5 +190,51 @@ Describe 'when all tests pass' {
     }
     It 'the SFTP session is closed' {
         Should -Invoke Remove-SFTPSession -Times 1 -Exactly -Scope Describe
+    }
+    Context 'export an Excel file' {
+        BeforeAll {
+            $testExportedExcelRows = @(
+                @{
+                    FileName          = $testData[0].Name
+                    FileLastWriteTime = $testData[0].LastWriteTime
+                    Downloaded        = $true
+                    DownloadedOn      = Get-Date
+                    DownloadFolder    = $testData[0].Destination.Folder
+                    Error             = $null
+                }
+                @{
+                    FileName          = $testData[1].Name
+                    FileLastWriteTime = $testData[1].LastWriteTime
+                    Downloaded        = $true
+                    DownloadedOn      = Get-Date
+                    DownloadFolder    = $testData[1].Destination.Folder
+                    Error             = $null
+                }
+            )
+
+            $testExcelLogFile = Get-ChildItem $testParams.LogFolder -File -Recurse -Filter '* - Log.xlsx'
+
+            $actual = Import-Excel -Path $testExcelLogFile.FullName -WorksheetName 'Overview'
+        }
+        It 'to the log folder' {
+            $testExcelLogFile | Should -Not -BeNullOrEmpty
+        }
+        It 'with the correct total rows' {
+            $actual | Should -HaveCount $testExportedExcelRows.Count
+        }
+        It 'with the correct data in the rows' {
+            foreach ($testRow in $testExportedExcelRows) {
+                $actualRow = $actual | Where-Object {
+                    $_.FileName -eq $testRow.FileName
+                }
+                $actualRow.FileLastWriteTime.ToString('yyyyMMdd HHmmss') | 
+                Should -Be $testRow.FileLastWriteTime.ToString('yyyyMMdd HHmmss')
+                $actualRow.Downloaded | Should -Be $testRow.Downloaded
+                $actualRow.DownloadedOn.ToString('yyyyMMdd') | 
+                Should -Be $testRow.DownloadedOn.ToString('yyyyMMdd')
+                $actualRow.DownloadFolder | Should -Be $testRow.DownloadFolder
+                $actualRow.Error | Should -Be $testRow.Error
+            }
+        }
     }
 } -Tag test
