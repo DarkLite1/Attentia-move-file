@@ -25,17 +25,7 @@ Param (
     [Parameter(Mandatory)]
     [String]$ScriptName,
     [Parameter(Mandatory)]
-    [String]$DownloadFolder,
-    [Parameter(Mandatory)]
-    [String[]]$MailTo, 
-    [HashTable]$Sftp = @{
-        Credential   = @{
-            UserName = $env:ATTENTIA_SFTP_USERNAME_TEST
-            Password = $env:ATTENTIA_SFTP_PASSWORD_TEST
-        }
-        ComputerName = 'ftp.attentia.be'
-        Path         = '/Out/BAND'
-    },
+    [String]$ImportFile,
     [String]$LogFolder = "$env:POWERSHELL_LOG_FOLDER\Application specific\Attentia\$ScriptName",
     [String[]]$ScriptAdmin = @(
         $env:POWERSHELL_SCRIPT_ADMIN,
@@ -45,6 +35,14 @@ Param (
 
 Begin {
     Try {
+        Function Get-EnvironmentVariableValueHC {
+            Param(
+                [String]$Name
+            )
+        
+            [Environment]::GetEnvironmentVariable($Name)
+        }
+
         Get-ScriptRuntimeHC -Start
         Import-EventLogParamsHC -Source $ScriptName
         Write-EventLog @EventStartParams
@@ -64,6 +62,56 @@ Begin {
             throw "Failed creating the log folder '$LogFolder': $_"
         }
         #endregion
+
+        #region Import .json file
+        $M = "Import .json file '$ImportFile'"
+        Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
+      
+        $file = Get-Content $ImportFile -Raw -EA Stop | ConvertFrom-Json
+        #endregion
+      
+        #region Test .json file properties
+        try {
+            if (-not ($MailTo = $file.MailTo)) {
+                throw "No 'MailTo' found."
+            }
+            if (-not ($DownloadFolder = $file.DownloadFolder)) {
+                throw "No 'DownloadFolder' found."
+            }
+            if (-not ($FolderNameMappingTable = $file.FolderNameMappingTable)) {
+                throw "No 'FolderNameMappingTable' found."
+            }
+            foreach ($f in $FolderNameMappingTable) {
+                @('FolderName', 'CompanyCode', 'LocationCode') | 
+                Where-Object { -not $f.$_ } | ForEach-Object {
+                    throw "No '$_' found in the 'FolderNameMappingTable'."
+                }
+            }
+            $Sftp = @{
+                Credential   = @{
+                    UserName = Get-EnvironmentVariableValueHC -Name $file.Sftp.Credential.UserName
+                    Password = Get-EnvironmentVariableValueHC -Name $file.Sftp.Credential.Password
+                }
+                ComputerName = $file.Sftp.ComputerName
+                Path         = $file.Sftp.Path
+            }
+            if (-not $sftp.Credential.UserName) {
+                throw "No 'UserName' found in 'sftp.Credential'."
+            }
+            if (-not $sftp.Credential.Password) {
+                throw "No 'Password' found in 'sftp.Credential'."
+            }
+            if (-not $sftp.ComputerName) {
+                throw "No 'ComputerName' found in 'sftp'."
+            }
+            if (-not $sftp.Path) {
+                throw "No 'Path' found in 'sftp'."
+            }
+        }
+        catch {
+            throw "Input file '$ImportFile': $_"
+        }
+        #endregion  
 
         #region Test download folder
         if (-not (Test-Path -Path $DownloadFolder -PathType 'Container')) { 

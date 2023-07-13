@@ -3,15 +3,55 @@
 #Requires -Version 5.1
 
 BeforeAll {
-    $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
-    $testParams = @{
-        ScriptName     = 'Test (Brecht)'
-        MailTo         = 'bob@conotoso.com'
-        DownloadFolder = New-Item 'TestDrive:/folder' -ItemType Directory
-        LogFolder      = New-Item 'TestDrive:/log' -ItemType Directory
-        ScriptAdmin    = 'admin@conotoso.com'
+    $testInputFile = @{
+        MailTo                 = 'bob@contoso.com'
+        DownloadFolder         = (New-Item 'TestDrive:/a' -ItemType Directory).FullName
+        Sftp                   = @{
+            Credential   = @{
+                UserName = 'envVarBob'
+                Password = 'envVarPasswordBob'
+            }
+            ComputerName = 'PC1'
+            Path         = '/folder'
+        }
+        FolderNameMappingTable = @(
+            @{
+                FolderName   = 'blue collars'
+                CompanyCode  = '001'
+                LocationCode = '9000'
+            }
+        )
     }
 
+    $testOutParams = @{
+        FilePath = (New-Item "TestDrive:/Test.json" -ItemType File).FullName
+        Encoding = 'utf8'
+    }
+
+    $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
+    $testParams = @{
+        ScriptName  = 'Test (Brecht)'
+        ImportFile  = $testOutParams.FilePath
+        LogFolder   = New-Item 'TestDrive:/log' -ItemType Directory
+        ScriptAdmin = 'admin@conotoso.com'
+    }
+
+    Function Get-EnvironmentVariableValueHC {
+        Param(
+            [String]$Name
+        )
+    }
+    
+    Mock Get-EnvironmentVariableValueHC {
+        'bob'
+    } -ParameterFilter {
+        $Name -eq $testInputFile.SFtp.Credential.UserName
+    }
+    Mock Get-EnvironmentVariableValueHC {
+        'PasswordBob'
+    } -ParameterFilter {
+        $Name -eq $testInputFile.SFtp.Credential.Password
+    }
     Mock Get-SFTPChildItem
     Mock Get-SFTPItem
     Mock New-SFTPSession {
@@ -27,7 +67,7 @@ BeforeAll {
     Mock Write-EventLog
 }
 Describe 'the mandatory parameters are' {
-    It '<_>' -ForEach @('DownloadFolder', 'ScriptName') {
+    It '<_>' -ForEach @('ImportFile', 'ScriptName') {
         (Get-Command $testScript).Parameters[$_].Attributes.Mandatory | 
         Should -BeTrue
     }
@@ -52,15 +92,116 @@ Describe 'send an e-mail to the admin when' {
             ($Message -like '*Failed creating the log folder*')
         }
     }
-    It 'the download folder does not exist' {
-        $testNewParams = $testParams.clone()
-        $testNewParams.DownloadFolder = 'c:/notExistingFolder'
+    Context 'the ImportFile' {
+        It 'is not found' {
+            $testNewParams = $testParams.clone()
+            $testNewParams.ImportFile = 'nonExisting.json'
+    
+            .$testScript @testNewParams
+    
+            Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
+                    (&$MailAdminParams) -and ($Message -like "Cannot find path*nonExisting.json*")
+            }
+            Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
+                $EntryType -eq 'Error'
+            }
+        }
+        Context 'property' {
+            It '<_> is missing' -ForEach @(
+                'MailTo', 'DownloadFolder', 'FolderNameMappingTable'
+            ) {
+                $testNewInputFile = Copy-ObjectHC $testInputFile
+                $testNewInputFile.$_ = $null
 
-        .$testScript @testNewParams
+                $testNewInputFile | ConvertTo-Json -Depth 5 | 
+                Out-File @testOutParams
+                
+                .$testScript @testParams
+                
+                Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
+                    (&$MailAdminParams) -and 
+                    ($Message -like "*$ImportFile*No '$_' found*")
+                }
+                Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
+                    $EntryType -eq 'Error'
+                }
+            }
+            Context 'sftp' {
+                It 'credential.<_> is missing' -ForEach @(
+                    'UserName', 'Password'
+                ) {
+                    $testNewInputFile = Copy-ObjectHC $testInputFile
+                    $testNewInputFile.Sftp.Credential.$_ = $null
+    
+                    $testNewInputFile | ConvertTo-Json -Depth 5 | 
+                    Out-File @testOutParams
+                    
+                    .$testScript @testParams
+                    
+                    Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
+                        (&$MailAdminParams) -and 
+                        ($Message -like "*$ImportFile*No '$_' found in 'sftp.credential'*")
+                    }
+                    Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
+                        $EntryType -eq 'Error'
+                    }
+                }
+                It '<_> is missing' -ForEach @(
+                    'ComputerName', 'Path'
+                ) {
+                    $testNewInputFile = Copy-ObjectHC $testInputFile
+                    $testNewInputFile.Sftp.$_ = $null
+    
+                    $testNewInputFile | ConvertTo-Json -Depth 5 | 
+                    Out-File @testOutParams
+                    
+                    .$testScript @testParams
+                    
+                    Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
+                        (&$MailAdminParams) -and 
+                        ($Message -like "*$ImportFile*No '$_' found in 'sftp'*")
+                    }
+                    Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
+                        $EntryType -eq 'Error'
+                    }
+                }
+            }
+            Context 'FolderNameMappingTable' {
+                It '<_> is missing' -ForEach @(
+                    'FolderName', 'CompanyCode', 'LocationCode'
+                ) {
+                    $testNewInputFile = Copy-ObjectHC $testInputFile
+                    $testNewInputFile.FolderNameMappingTable[0].$_ = $null
+    
+                    $testNewInputFile | ConvertTo-Json -Depth 5 | 
+                    Out-File @testOutParams
+                    
+                    .$testScript @testParams
+                    
+                    Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
+                        (&$MailAdminParams) -and 
+                        ($Message -like "*$ImportFile*No '$_' found in the 'FolderNameMappingTable'*")
+                    }
+                    Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
+                        $EntryType -eq 'Error'
+                    }
+                }
+            }
+      
+        }
+    }
+    It 'the download folder does not exist' {
+        $testNewInputFile = Copy-ObjectHC $testInputFile
+        $testNewInputFile.DownloadFolder = 'c:/notExistingFolder'
+
+        $testNewInputFile | ConvertTo-Json -Depth 5 | 
+        Out-File @testOutParams
+
+        .$testScript @testParams
 
         Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
             (&$MailAdminParams) -and 
-            ($Message -like "*Download folder '$($testNewParams.DownloadFolder)' not found*")
+            ($Message -like "*Download folder '$($testNewInputFile.DownloadFolder)' not found*")
         }
     }
     It 'authentication to the SFTP server fails' {
@@ -68,21 +209,14 @@ Describe 'send an e-mail to the admin when' {
             throw 'Failed authenticating'
         }
 
-        $testNewParams = $testParams.clone()
-        $testNewParams.Sftp = @{
-            Credential   = @{
-                UserName = $env:ATTENTIA_SFTP_USERNAME_TEST
-                Password = $env:ATTENTIA_SFTP_PASSWORD_TEST
-            }
-            ComputerName = 'ftp.somewhere'
-            Path         = '/folder'
-        }
+        $testInputFile | ConvertTo-Json -Depth 5 | 
+        Out-File @testOutParams
 
-        .$testScript @testNewParams
+        .$testScript @testParams
 
         Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
             (&$MailAdminParams) -and 
-            ($Message -like "*Failed creating an SFTP session to 'ftp.somewhere'*")
+            ($Message -like "*Failed creating an SFTP session to '$($testInputFile.sftp.ComputerName)'*")
         }
     }
     It 'the SFTP path does not exist' {
@@ -90,21 +224,17 @@ Describe 'send an e-mail to the admin when' {
             $false
         }
 
-        $testNewParams = $testParams.clone()
-        $testNewParams.Sftp = @{
-            Credential   = @{
-                UserName = $env:ATTENTIA_SFTP_USERNAME_TEST
-                Password = $env:ATTENTIA_SFTP_PASSWORD_TEST
-            }
-            ComputerName = 'ftp.somewhere'
-            Path         = '/notExisting'
-        }
+        $testNewInputFile = Copy-ObjectHC $testInputFile
+        $testNewInputFile.Sftp.Path = '/notExisting'
 
-        .$testScript @testNewParams
+        $testNewInputFile | ConvertTo-Json -Depth 5 | 
+        Out-File @testOutParams
+
+        .$testScript @testParams
 
         Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
             (&$MailAdminParams) -and 
-            ($Message -like "*SFTP path '/notExisting' not found*")
+            ($Message -like "*SFTP path '$($testNewInputFile.Sftp.Path)' not found*")
         }
     }
     It 'the SFTP file list could bot be retrieved' {
@@ -112,21 +242,14 @@ Describe 'send an e-mail to the admin when' {
             throw 'Failed getting list'
         }
 
-        $testNewParams = $testParams.clone()
-        $testNewParams.Sftp = @{
-            Credential   = @{
-                UserName = $env:ATTENTIA_SFTP_USERNAME_TEST
-                Password = $env:ATTENTIA_SFTP_PASSWORD_TEST
-            }
-            ComputerName = 'ftp.somewhere'
-            Path         = '/folder'
-        }
-      
-        .$testScript @testNewParams
+        $testInputFile | ConvertTo-Json -Depth 5 | 
+        Out-File @testOutParams
+
+        .$testScript @testParams
 
         Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
             (&$MailAdminParams) -and 
-            ($Message -like "*Failed retrieving the SFTP file list from 'ftp.somewhere' in path '/folder'*")
+            ($Message -like "*Failed retrieving the SFTP file list from '$($testInputFile.Sftp.ComputerName)' in path '$($testInputFile.sftp.Path)'*")
         }
     }
 }
@@ -138,8 +261,8 @@ Describe 'when all tests pass' {
                 FullName      = '\folder\123456Brussels.txt'
                 LastWriteTime = (Get-Date).AddDays(-3)
                 Destination   = @{
-                    Folder   = Join-Path $testParams.DownloadFolder 'Brussels'
-                    FilePath = Join-Path $testParams.DownloadFolder 'Brussels\123456Brussels.txt'
+                    Folder   = Join-Path $testInputFile.DownloadFolder 'Brussels'
+                    FilePath = Join-Path $testInputFile.DownloadFolder 'Brussels\123456Brussels.txt'
                 }
             }
             [PSCustomObject]@{
@@ -147,8 +270,8 @@ Describe 'when all tests pass' {
                 FullName      = '\folder\123456London.txt'
                 LastWriteTime = (Get-Date).AddDays(-4)
                 Destination   = @{
-                    Folder   = Join-Path $testParams.DownloadFolder 'London'
-                    FilePath = Join-Path $testParams.DownloadFolder 'London\123456London.txt'
+                    Folder   = Join-Path $testInputFile.DownloadFolder 'London'
+                    FilePath = Join-Path $testInputFile.DownloadFolder 'London\123456London.txt'
                 }
             }
         )
@@ -172,9 +295,10 @@ Describe 'when all tests pass' {
             ($Force)
         }
 
-        $testNewParams = $testParams.clone()
+        $testInputFile | ConvertTo-Json -Depth 5 | 
+        Out-File @testOutParams
 
-        .$testScript @testNewParams
+        .$testScript @testParams
     }
     It 'the SFTP file list is retrieved' {
         Should -Invoke Get-SFTPChildItem -Times 1 -Exactly -Scope Describe
@@ -241,7 +365,7 @@ Describe 'when all tests pass' {
     Context 'send an e-mail' {
         It 'to the user' {
             Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
-            ($To -eq $testParams.MailTo) -and
+            ($To -eq $testInputFile.MailTo) -and
             ($Bcc -eq $testParams.ScriptAdmin) -and
             ($Priority -eq 'Normal') -and
             ($Subject -eq '2/2 files downloaded') -and
@@ -250,4 +374,4 @@ Describe 'when all tests pass' {
             }
         }
     }
-}
+} -tag test
