@@ -7,12 +7,13 @@ BeforeAll {
         MailTo                 = 'bob@contoso.com'
         DownloadFolder         = (New-Item 'TestDrive:/a' -ItemType Directory).FullName
         Sftp                   = @{
-            Credential   = @{
+            Credential              = @{
                 UserName = 'envVarBob'
                 Password = 'envVarPasswordBob'
             }
-            ComputerName = 'PC1'
-            Path         = '/folder'
+            ComputerName            = 'PC1'
+            Path                    = '/folder'
+            RemoveFileAfterDownload = $false
         }
         FolderNameMappingTable = @(
             @{
@@ -107,6 +108,23 @@ Describe 'send an e-mail to the admin when' {
             }
         }
         Context 'property' {
+            it 'RemoveFileAfterDownload is not a boolean' {
+                $testNewInputFile = Copy-ObjectHC $testInputFile
+                $testNewInputFile.Sftp.RemoveFileAfterDownload = 2
+
+                $testNewInputFile | ConvertTo-Json -Depth 5 | 
+                Out-File @testOutParams
+                
+                .$testScript @testParams
+
+                Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
+                    (&$MailAdminParams) -and 
+                    ($Message -like "*$ImportFile*Property 'RemoveFileAfterDownload' is not a boolean value*")
+                }
+                Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
+                    $EntryType -eq 'Error'
+                }
+            } -Tag test
             It '<_> is missing' -ForEach @(
                 'MailTo', 'DownloadFolder', 'FolderNameMappingTable'
             ) {
@@ -374,4 +392,4 @@ Describe 'when all tests pass' {
             }
         }
     }
-} -tag test
+}

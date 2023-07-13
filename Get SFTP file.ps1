@@ -88,12 +88,13 @@ Begin {
                 }
             }
             $Sftp = @{
-                Credential   = @{
+                Credential              = @{
                     UserName = Get-EnvironmentVariableValueHC -Name $file.Sftp.Credential.UserName
                     Password = Get-EnvironmentVariableValueHC -Name $file.Sftp.Credential.Password
                 }
-                ComputerName = $file.Sftp.ComputerName
-                Path         = $file.Sftp.Path
+                ComputerName            = $file.Sftp.ComputerName
+                Path                    = $file.Sftp.Path
+                RemoveFileAfterDownload = $file.Sftp.RemoveFileAfterDownload
             }
             if (-not $sftp.Credential.UserName) {
                 throw "No 'UserName' found in 'sftp.Credential'."
@@ -106,6 +107,13 @@ Begin {
             }
             if (-not $sftp.Path) {
                 throw "No 'Path' found in 'sftp'."
+            }
+
+            try {
+                [Boolean]::Parse($Sftp.RemoveFileAfterDownload)
+            }
+            catch {
+                throw "Property 'RemoveFileAfterDownload' is not a boolean value"
             }
         }
         catch {
