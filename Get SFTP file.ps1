@@ -75,16 +75,23 @@ Begin {
             if (-not ($MailTo = $file.MailTo)) {
                 throw "No 'MailTo' found."
             }
-            if (-not ($DownloadFolder = $file.DownloadFolder)) {
-                throw "No 'DownloadFolder' found."
+            if (-not ($Download = $file.Download)) {
+                throw "No 'Download' found."
             }
-            if (-not ($FolderNameMappingTable = $file.FolderNameMappingTable)) {
-                throw "No 'FolderNameMappingTable' found."
+            @(
+                'ParentFolder', 
+                'ChildFolderNameMappingTable'
+            ) | 
+            Where-Object { -not $Download.$_ } | ForEach-Object {
+                throw "No '$_' found in 'Download'."
             }
-            foreach ($f in $FolderNameMappingTable) {
+            if (-not ($ChildFolderNameMappingTable = $file.Download.ChildFolderNameMappingTable)) {
+                throw "No 'ChildFolderNameMappingTable' found."
+            }
+            foreach ($f in $ChildFolderNameMappingTable) {
                 @('FolderName', 'CompanyCode', 'LocationCode') | 
                 Where-Object { -not $f.$_ } | ForEach-Object {
-                    throw "No '$_' found in the 'FolderNameMappingTable'."
+                    throw "No '$_' found in the 'Download.ChildFolderNameMappingTable'."
                 }
             }
             $Sftp = @{
@@ -115,6 +122,12 @@ Begin {
             catch {
                 throw "Property 'RemoveFileAfterDownload' is not a boolean value"
             }
+            try {
+                [Boolean]::Parse($Download.OverwriteExistingFile)
+            }
+            catch {
+                throw "Property 'OverwriteExistingFile' is not a boolean value"
+            }
         }
         catch {
             throw "Input file '$ImportFile': $_"
@@ -122,8 +135,8 @@ Begin {
         #endregion  
 
         #region Test download folder
-        if (-not (Test-Path -Path $DownloadFolder -PathType 'Container')) { 
-            throw "Download folder '$DownloadFolder' not found."
+        if (-not (Test-Path -Path $Download.ParentFolder -PathType 'Container')) { 
+            throw "Parent download folder '$($Download.ParentFolder)' not found."
         }
         #endregion
 
@@ -212,12 +225,13 @@ Process {
         [array]$results = ForEach ($sftpFile in $sftpFiles) {
             try {
                 $result = [PSCustomObject]@{
-                    FileName          = $sftpFile.Name
-                    FileLastWriteTime = $sftpFile.LastWriteTime 
-                    Downloaded        = $false
-                    DownloadedOn      = $null
-                    DownloadFolder    = $null
-                    Error             = $null
+                    FileName            = $sftpFile.Name
+                    FileLastWriteTime   = $sftpFile.LastWriteTime 
+                    Downloaded          = $false
+                    DownloadedOn        = $null
+                    DownloadFolder      = $null
+                    RemovedOnSftpServer = $false
+                    Error               = $null
                 }
                 
                 #region Create file download folder
@@ -228,7 +242,7 @@ Process {
                 if (-not $fileDownloadFolders.ContainsKey($folderName)) {
                     try {
                         $testPathParams = @{
-                            Path        = Join-Path $DownloadFolder $folderName
+                            Path        = Join-Path $Download.ParentFolder $folderName
                             PathType    = 'Container'
                             ErrorAction = 'Stop'
                         }
@@ -245,9 +259,9 @@ Process {
                                 ErrorAction = 'Stop'
                             }
                             $null = New-Item @newItemParams
-
-                            $fileDownloadFolders[$folderName] = $testPathParams.Path
                         }
+
+                        $fileDownloadFolders[$folderName] = $testPathParams.Path
                     }
                     catch {
                         $M = "Failed creating file download folder '{0}': $_" -f $testPathParams.Path
@@ -274,15 +288,34 @@ Process {
                     Get-SFTPItem @params
     
                     $result.DownloadedOn = Get-Date
-                    $result.Downloaded = $true    
+                    $result.Downloaded = $true
                 }
                 catch {
                     throw "Failed downloading file: $_"
                 }
+
+                try {    
+                    if ($Sftp.RemoveFileAfterDownload) {
+                        $M = "Remove file '{0}' from SFTP server" -f
+                        $sftpFile.FullName 
+                        Write-Verbose $M
+                            
+                        $params = @{
+                            SessionId   = $sftpSession.SessionID
+                            Path        = $sftpFile.FullName 
+                            ErrorAction = 'Stop'
+                        }
+                        Remove-SFTPItem @params
+                        $result.RemovedOnSftpServer = $true
+                    }
+                }
+                catch {
+                    throw "Failed removing file: $_"
+                }
                 #endregion
             }
             catch {
-                $M = "Failed downloading file '$($result.FileName)': $_"
+                $M = "Failed file '$($result.FileName)': $_"
                 Write-Warning $M
                 $result.Error = $_
                 $Error.RemoveAt(0)

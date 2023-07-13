@@ -4,9 +4,19 @@
 
 BeforeAll {
     $testInputFile = @{
-        MailTo                 = 'bob@contoso.com'
-        DownloadFolder         = (New-Item 'TestDrive:/a' -ItemType Directory).FullName
-        Sftp                   = @{
+        MailTo   = 'bob@contoso.com'
+        Download = @{
+            OverwriteExistingFile       = $false
+            ParentFolder                = (New-Item 'TestDrive:/a' -ItemType Directory).FullName
+            ChildFolderNameMappingTable = @(
+                @{
+                    FolderName   = 'blue collars'
+                    CompanyCode  = '001'
+                    LocationCode = '9000'
+                }
+            )
+        }
+        Sftp     = @{
             Credential              = @{
                 UserName = 'envVarBob'
                 Password = 'envVarPasswordBob'
@@ -15,13 +25,6 @@ BeforeAll {
             Path                    = '/folder'
             RemoveFileAfterDownload = $false
         }
-        FolderNameMappingTable = @(
-            @{
-                FolderName   = 'blue collars'
-                CompanyCode  = '001'
-                LocationCode = '9000'
-            }
-        )
     }
 
     $testOutParams = @{
@@ -64,6 +67,7 @@ BeforeAll {
         $true
     }
     Mock Remove-SFTPSession
+    Mock Remove-SFTPItem
     Mock Send-MailHC
     Mock Write-EventLog
 }
@@ -108,7 +112,7 @@ Describe 'send an e-mail to the admin when' {
             }
         }
         Context 'property' {
-            it 'RemoveFileAfterDownload is not a boolean' {
+            It 'RemoveFileAfterDownload is not a boolean' {
                 $testNewInputFile = Copy-ObjectHC $testInputFile
                 $testNewInputFile.Sftp.RemoveFileAfterDownload = 2
 
@@ -124,9 +128,9 @@ Describe 'send an e-mail to the admin when' {
                 Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
                     $EntryType -eq 'Error'
                 }
-            } -Tag test
+            }
             It '<_> is missing' -ForEach @(
-                'MailTo', 'DownloadFolder', 'FolderNameMappingTable'
+                'MailTo', 'Download'
             ) {
                 $testNewInputFile = Copy-ObjectHC $testInputFile
                 $testNewInputFile.$_ = $null
@@ -142,6 +146,66 @@ Describe 'send an e-mail to the admin when' {
                 }
                 Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
                     $EntryType -eq 'Error'
+                }
+            }
+            Context 'Download' {
+                It 'OverwriteExistingFile is not a boolean' {
+                    $testNewInputFile = Copy-ObjectHC $testInputFile
+                    $testNewInputFile.Download.OverwriteExistingFile = 2
+    
+                    $testNewInputFile | ConvertTo-Json -Depth 5 | 
+                    Out-File @testOutParams
+                    
+                    .$testScript @testParams
+    
+                    Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
+                        (&$MailAdminParams) -and 
+                        ($Message -like "*$ImportFile*Property 'OverwriteExistingFile' is not a boolean value*")
+                    }
+                    Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
+                        $EntryType -eq 'Error'
+                    }
+                }
+                It '<_> is missing' -ForEach @(
+                    'ParentFolder', 
+                    'ChildFolderNameMappingTable'
+                ) {
+                    $testNewInputFile = Copy-ObjectHC $testInputFile
+                    $testNewInputFile.Download.$_ = $null
+    
+                    $testNewInputFile | ConvertTo-Json -Depth 5 | 
+                    Out-File @testOutParams
+                    
+                    .$testScript @testParams
+                    
+                    Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
+                        (&$MailAdminParams) -and 
+                        ($Message -like "*$ImportFile*No '$_' found in 'Download'*")
+                    }
+                    Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
+                        $EntryType -eq 'Error'
+                    }
+                }
+                Context 'ChildFolderNameMappingTable' {
+                    It '<_> is missing' -ForEach @(
+                        'FolderName', 'CompanyCode', 'LocationCode'
+                    ) {
+                        $testNewInputFile = Copy-ObjectHC $testInputFile
+                        $testNewInputFile.Download.ChildFolderNameMappingTable[0].$_ = $null
+        
+                        $testNewInputFile | ConvertTo-Json -Depth 5 | 
+                        Out-File @testOutParams
+                        
+                        .$testScript @testParams
+                        
+                        Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
+                            (&$MailAdminParams) -and 
+                            ($Message -like "*$ImportFile*No '$_' found in the 'Download.ChildFolderNameMappingTable'*")
+                        }
+                        Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
+                            $EntryType -eq 'Error'
+                        }
+                    }
                 }
             }
             Context 'sftp' {
@@ -184,33 +248,11 @@ Describe 'send an e-mail to the admin when' {
                     }
                 }
             }
-            Context 'FolderNameMappingTable' {
-                It '<_> is missing' -ForEach @(
-                    'FolderName', 'CompanyCode', 'LocationCode'
-                ) {
-                    $testNewInputFile = Copy-ObjectHC $testInputFile
-                    $testNewInputFile.FolderNameMappingTable[0].$_ = $null
-    
-                    $testNewInputFile | ConvertTo-Json -Depth 5 | 
-                    Out-File @testOutParams
-                    
-                    .$testScript @testParams
-                    
-                    Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                        (&$MailAdminParams) -and 
-                        ($Message -like "*$ImportFile*No '$_' found in the 'FolderNameMappingTable'*")
-                    }
-                    Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
-                        $EntryType -eq 'Error'
-                    }
-                }
-            }
-      
         }
     }
-    It 'the download folder does not exist' {
+    It 'the parent download folder does not exist' {
         $testNewInputFile = Copy-ObjectHC $testInputFile
-        $testNewInputFile.DownloadFolder = 'c:/notExistingFolder'
+        $testNewInputFile.Download.ParentFolder = 'c:/notExistingFolder'
 
         $testNewInputFile | ConvertTo-Json -Depth 5 | 
         Out-File @testOutParams
@@ -219,9 +261,9 @@ Describe 'send an e-mail to the admin when' {
 
         Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
             (&$MailAdminParams) -and 
-            ($Message -like "*Download folder '$($testNewInputFile.DownloadFolder)' not found*")
+            ($Message -like "*Parent download folder '$($testNewInputFile.Download.ParentFolder)' not found*")
         }
-    }
+    } -tag test
     It 'authentication to the SFTP server fails' {
         Mock New-SFTPSession {
             throw 'Failed authenticating'
@@ -279,8 +321,8 @@ Describe 'when all tests pass' {
                 FullName      = '\folder\123456Brussels.txt'
                 LastWriteTime = (Get-Date).AddDays(-3)
                 Destination   = @{
-                    Folder   = Join-Path $testInputFile.DownloadFolder 'Brussels'
-                    FilePath = Join-Path $testInputFile.DownloadFolder 'Brussels\123456Brussels.txt'
+                    Folder   = Join-Path $testInputFile.Download.ParentFolder 'Brussels'
+                    FilePath = Join-Path $testInputFile.Download.ParentFolder 'Brussels\123456Brussels.txt'
                 }
             }
             [PSCustomObject]@{
@@ -288,8 +330,8 @@ Describe 'when all tests pass' {
                 FullName      = '\folder\123456London.txt'
                 LastWriteTime = (Get-Date).AddDays(-4)
                 Destination   = @{
-                    Folder   = Join-Path $testInputFile.DownloadFolder 'London'
-                    FilePath = Join-Path $testInputFile.DownloadFolder 'London\123456London.txt'
+                    Folder   = Join-Path $testInputFile.Download.ParentFolder 'London'
+                    FilePath = Join-Path $testInputFile.Download.ParentFolder 'London\123456London.txt'
                 }
             }
         )
@@ -393,3 +435,68 @@ Describe 'when all tests pass' {
         }
     }
 }
+Context 'when RemoveFileAfterDownload is' {
+    BeforeAll {
+        $testData = @(
+            [PSCustomObject]@{
+                Name          = '123456Brussels.txt'
+                FullName      = '\folder\123456Brussels.txt'
+                LastWriteTime = (Get-Date).AddDays(-3)
+                Destination   = @{
+                    Folder   = Join-Path $testInputFile.Download.ParentFolder 'Brussels'
+                    FilePath = Join-Path $testInputFile.Download.ParentFolder 'Brussels\123456Brussels.txt'
+                }
+            }
+            [PSCustomObject]@{
+                Name          = '123456London.txt'
+                FullName      = '\folder\123456London.txt'
+                LastWriteTime = (Get-Date).AddDays(-4)
+                Destination   = @{
+                    Folder   = Join-Path $testInputFile.Download.ParentFolder 'London'
+                    FilePath = Join-Path $testInputFile.Download.ParentFolder 'London\123456London.txt'
+                }
+            }
+        )
+        Mock Get-SFTPChildItem {
+            $testData | Select-Object -Property * -ExcludeProperty 'Destination'
+        }
+        Mock Get-SFTPItem {
+            $null = New-Item -Path $testData[0].Destination.FilePath -Force
+        } -ParameterFilter {
+            ($SessionId) -and
+            ($Path -eq $testData[0].FullName) -and
+            ($Destination -eq $testData[0].Destination.Folder) -and
+            ($Force)
+        }
+        Mock Get-SFTPItem {
+            $null = New-Item -Path $testData[1].Destination.FilePath -Force
+        } -ParameterFilter {
+            ($SessionId) -and
+            ($Path -eq $testData[1].FullName) -and
+            ($Destination -eq $testData[1].Destination.Folder) -and
+            ($Force)
+        }
+    }
+    It 'true the file on the SFTP server is removed' {
+        $testNewInputFile = Copy-ObjectHC $testInputFile
+        $testNewInputFile.Sftp.RemoveFileAfterDownload = $true
+
+        $testNewInputFile | ConvertTo-Json -Depth 5 | 
+        Out-File @testOutParams
+
+        .$testScript @testParams
+
+        Should -Invoke Remove-SFTPItem -Times 2 -Exactly
+    }
+    It 'false the file is left untouched on the SFTP server' {
+        $testNewInputFile = Copy-ObjectHC $testInputFile
+        $testNewInputFile.Sftp.RemoveFileAfterDownload = $false
+
+        $testNewInputFile | ConvertTo-Json -Depth 5 | 
+        Out-File @testOutParams
+
+        .$testScript @testParams
+
+        Should -Not -Invoke Remove-SFTPItem
+    }
+} -Tag test
