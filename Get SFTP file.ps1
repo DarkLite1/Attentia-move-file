@@ -282,8 +282,10 @@ Process {
                         SessionId   = $sftpSession.SessionID
                         Path        = $sftpFile.FullName 
                         Destination = $result.DownloadFolder 
-                        Force       = $true
                         ErrorAction = 'Stop'
+                    }
+                    if ($Download.OverwriteExistingFile) {
+                        $params.Force = $true
                     }
                     Get-SFTPItem @params
     
@@ -306,6 +308,7 @@ Process {
                             ErrorAction = 'Stop'
                         }
                         Remove-SFTPItem @params
+
                         $result.RemovedOnSftpServer = $true
                     }
                 }
@@ -362,7 +365,6 @@ End {
             $mailParams.Attachments = $excelParams.Path
         }
         #endregion
-
 
         #region Send mail to user
 

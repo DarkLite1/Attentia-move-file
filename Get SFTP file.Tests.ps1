@@ -263,7 +263,7 @@ Describe 'send an e-mail to the admin when' {
             (&$MailAdminParams) -and 
             ($Message -like "*Parent download folder '$($testNewInputFile.Download.ParentFolder)' not found*")
         }
-    } -tag test
+    }
     It 'authentication to the SFTP server fails' {
         Mock New-SFTPSession {
             throw 'Failed authenticating'
@@ -343,16 +343,14 @@ Describe 'when all tests pass' {
         } -ParameterFilter {
             ($SessionId) -and
             ($Path -eq $testData[0].FullName) -and
-            ($Destination -eq $testData[0].Destination.Folder) -and
-            ($Force)
+            ($Destination -eq $testData[0].Destination.Folder)
         }
         Mock Get-SFTPItem {
             $null = New-Item -Path $testData[1].Destination.FilePath
         } -ParameterFilter {
             ($SessionId) -and
             ($Path -eq $testData[1].FullName) -and
-            ($Destination -eq $testData[1].Destination.Folder) -and
-            ($Force)
+            ($Destination -eq $testData[1].Destination.Folder)
         }
 
         $testInputFile | ConvertTo-Json -Depth 5 | 
@@ -499,4 +497,96 @@ Context 'when RemoveFileAfterDownload is' {
 
         Should -Not -Invoke Remove-SFTPItem
     }
-} -Tag test
+}
+Context 'when OverwriteExistingFile is' {
+    BeforeAll {
+        $testData = @(
+            [PSCustomObject]@{
+                Name          = '123456Brussels.txt'
+                FullName      = '\folder\123456Brussels.txt'
+                LastWriteTime = (Get-Date).AddDays(-3)
+                Destination   = @{
+                    Folder   = Join-Path $testInputFile.Download.ParentFolder 'Brussels'
+                    FilePath = Join-Path $testInputFile.Download.ParentFolder 'Brussels\123456Brussels.txt'
+                }
+            }
+            [PSCustomObject]@{
+                Name          = '123456London.txt'
+                FullName      = '\folder\123456London.txt'
+                LastWriteTime = (Get-Date).AddDays(-4)
+                Destination   = @{
+                    Folder   = Join-Path $testInputFile.Download.ParentFolder 'London'
+                    FilePath = Join-Path $testInputFile.Download.ParentFolder 'London\123456London.txt'
+                }
+            }
+        )
+        Mock Get-SFTPChildItem {
+            $testData | Select-Object -Property * -ExcludeProperty 'Destination'
+        }
+    }
+    It 'true the file in the download folder is overwritten' {
+        $null = New-Item -Path $testData[0].Destination.FilePath -Force
+        $null = New-Item -Path $testData[1].Destination.FilePath -Force
+
+        Mock Get-SFTPItem {
+            $null = New-Item -Path $testData[0].Destination.FilePath -Force
+        } -ParameterFilter {
+            ($SessionId) -and
+            ($Path -eq $testData[0].FullName) -and
+            ($Destination -eq $testData[0].Destination.Folder) -and
+            ($Force)
+        }
+        Mock Get-SFTPItem {
+            $null = New-Item -Path $testData[1].Destination.FilePath -Force
+        } -ParameterFilter {
+            ($SessionId) -and
+            ($Path -eq $testData[1].FullName) -and
+            ($Destination -eq $testData[1].Destination.Folder) -and
+            ($Force)
+        }
+
+        $testNewInputFile = Copy-ObjectHC $testInputFile
+        $testNewInputFile.Download.OverwriteExistingFile = $true
+
+        $testNewInputFile | ConvertTo-Json -Depth 5 | 
+        Out-File @testOutParams
+
+        .$testScript @testParams
+
+        Should -Invoke Get-SFTPItem -Times 2 -Exactly -ParameterFilter {
+            $Force
+        }
+
+    }
+    It 'false the file in the parent folder if now overwritten and an error is logged' {
+        $null = New-Item -Path $testData[0].Destination.FilePath -Force
+        $null = New-Item -Path $testData[1].Destination.FilePath -Force
+
+        Mock Get-SFTPItem {
+            $null = New-Item -Path $testData[0].Destination.FilePath
+        } -ParameterFilter {
+            ($SessionId) -and
+            ($Path -eq $testData[0].FullName) -and
+            ($Destination -eq $testData[0].Destination.Folder)
+        }
+        Mock Get-SFTPItem {
+            $null = New-Item -Path $testData[1].Destination.FilePath
+        } -ParameterFilter {
+            ($SessionId) -and
+            ($Path -eq $testData[1].FullName) -and
+            ($Destination -eq $testData[1].Destination.Folder)
+        }
+
+        $testNewInputFile = Copy-ObjectHC $testInputFile
+        $testNewInputFile.Download.OverwriteExistingFile = $false
+
+        $testNewInputFile | ConvertTo-Json -Depth 5 | 
+        Out-File @testOutParams
+
+        .$testScript @testParams
+
+        Should -Invoke Get-SFTPItem -Times 2 -Exactly -ParameterFilter {
+            -not $Force
+        }
+    }
+}
