@@ -10,9 +10,9 @@ BeforeAll {
             ParentFolder                = (New-Item 'TestDrive:/a' -ItemType Directory).FullName
             ChildFolderNameMappingTable = @(
                 @{
-                    FolderName   = 'blue collars'
-                    CompanyCode  = '001'
-                    LocationCode = '9000'
+                    FolderName   = 'Brussels'
+                    CompanyCode  = '577600'
+                    LocationCode = '057'
                 }
             )
         }
@@ -26,6 +26,27 @@ BeforeAll {
             RemoveFileAfterDownload = $false
         }
     }
+
+    $testData = @(
+        [PSCustomObject]@{
+            Name          = 'BAND_577600_A_057_202306301556.pdf'
+            FullName      = '\folder\BAND_577600_A_057_202306301556.pdf'
+            LastWriteTime = (Get-Date).AddDays(-3)
+            Destination   = @{
+                Folder   = Join-Path $testInputFile.Download.ParentFolder 'Brussels'
+                FilePath = Join-Path $testInputFile.Download.ParentFolder 'Brussels\BAND_577600_A_057_202306301556.pdf'
+            }
+        }
+        [PSCustomObject]@{
+            Name          = 'BAND_999900_A_123_202307301544.pdf'
+            FullName      = '\folder\BAND_999900_A_123_202307301544.pdf'
+            LastWriteTime = (Get-Date).AddDays(-4)
+            Destination   = @{
+                Folder   = Join-Path $testInputFile.Download.ParentFolder '999900 123'
+                FilePath = Join-Path $testInputFile.Download.ParentFolder '999900 123\BAND_999900_A_123_202307301544.pdf'
+            }
+        }
+    )
 
     $testOutParams = @{
         FilePath = (New-Item "TestDrive:/Test.json" -ItemType File).FullName
@@ -315,26 +336,6 @@ Describe 'send an e-mail to the admin when' {
 }
 Describe 'when all tests pass' {
     BeforeAll {
-        $testData = @(
-            [PSCustomObject]@{
-                Name          = '123456Brussels.txt'
-                FullName      = '\folder\123456Brussels.txt'
-                LastWriteTime = (Get-Date).AddDays(-3)
-                Destination   = @{
-                    Folder   = Join-Path $testInputFile.Download.ParentFolder 'Brussels'
-                    FilePath = Join-Path $testInputFile.Download.ParentFolder 'Brussels\123456Brussels.txt'
-                }
-            }
-            [PSCustomObject]@{
-                Name          = '123456London.txt'
-                FullName      = '\folder\123456London.txt'
-                LastWriteTime = (Get-Date).AddDays(-4)
-                Destination   = @{
-                    Folder   = Join-Path $testInputFile.Download.ParentFolder 'London'
-                    FilePath = Join-Path $testInputFile.Download.ParentFolder 'London\123456London.txt'
-                }
-            }
-        )
         Mock Get-SFTPChildItem {
             $testData | Select-Object -Property * -ExcludeProperty 'Destination'
         }
@@ -361,15 +362,25 @@ Describe 'when all tests pass' {
     It 'the SFTP file list is retrieved' {
         Should -Invoke Get-SFTPChildItem -Times 1 -Exactly -Scope Describe
     }
-    It 'a folder is created based on the file name' {
-        $testData[0].Destination.Folder | Should -Exist
-        $testData[1].Destination.Folder | Should -Exist
-    }
-    It 'the files are downloaded to the correct folder' {
-        Should -Invoke Get-SFTPItem -Times 2 -Exactly -Scope Describe
+    Context 'download each file on the SFTP server to' {
+        It 'the matching FolderName in ChildFolderNameMappingTable' {
+            $testData[0].Destination.Folder | Should -Exist
+            $testData[0].Destination.FilePath | Should -Exist
 
-        $testData[0].Destination.FilePath | Should -Exist
-        $testData[1].Destination.FilePath | Should -Exist
+            Should -Invoke Get-SFTPItem -Times 1 -Exactly -Scope 'Describe' -ParameterFilter {
+                ($Path -eq $testData[0].FullName) -and
+                ($Destination -eq $testData[0].Destination.Folder)
+            }
+        }
+        It "the folder 'CompanyCode LocationCode' when there is no match" {
+            $testData[1].Destination.Folder | Should -Exist
+            $testData[1].Destination.FilePath | Should -Exist
+
+            Should -Invoke Get-SFTPItem -Times 1 -Exactly -Scope 'Describe' -ParameterFilter {
+                ($Path -eq $testData[1].FullName) -and
+                ($Destination -eq $testData[1].Destination.Folder)
+            }
+        }
     }
     It 'the SFTP session is closed' {
         Should -Invoke Remove-SFTPSession -Times 1 -Exactly -Scope Describe
@@ -433,28 +444,8 @@ Describe 'when all tests pass' {
         }
     }
 }
-Context 'when RemoveFileAfterDownload is' {
+Describe 'when RemoveFileAfterDownload is' {
     BeforeAll {
-        $testData = @(
-            [PSCustomObject]@{
-                Name          = '123456Brussels.txt'
-                FullName      = '\folder\123456Brussels.txt'
-                LastWriteTime = (Get-Date).AddDays(-3)
-                Destination   = @{
-                    Folder   = Join-Path $testInputFile.Download.ParentFolder 'Brussels'
-                    FilePath = Join-Path $testInputFile.Download.ParentFolder 'Brussels\123456Brussels.txt'
-                }
-            }
-            [PSCustomObject]@{
-                Name          = '123456London.txt'
-                FullName      = '\folder\123456London.txt'
-                LastWriteTime = (Get-Date).AddDays(-4)
-                Destination   = @{
-                    Folder   = Join-Path $testInputFile.Download.ParentFolder 'London'
-                    FilePath = Join-Path $testInputFile.Download.ParentFolder 'London\123456London.txt'
-                }
-            }
-        )
         Mock Get-SFTPChildItem {
             $testData | Select-Object -Property * -ExcludeProperty 'Destination'
         }
@@ -498,28 +489,8 @@ Context 'when RemoveFileAfterDownload is' {
         Should -Not -Invoke Remove-SFTPItem
     }
 }
-Context 'when OverwriteExistingFile is' {
+Describe 'when OverwriteExistingFile is' {
     BeforeAll {
-        $testData = @(
-            [PSCustomObject]@{
-                Name          = '123456Brussels.txt'
-                FullName      = '\folder\123456Brussels.txt'
-                LastWriteTime = (Get-Date).AddDays(-3)
-                Destination   = @{
-                    Folder   = Join-Path $testInputFile.Download.ParentFolder 'Brussels'
-                    FilePath = Join-Path $testInputFile.Download.ParentFolder 'Brussels\123456Brussels.txt'
-                }
-            }
-            [PSCustomObject]@{
-                Name          = '123456London.txt'
-                FullName      = '\folder\123456London.txt'
-                LastWriteTime = (Get-Date).AddDays(-4)
-                Destination   = @{
-                    Folder   = Join-Path $testInputFile.Download.ParentFolder 'London'
-                    FilePath = Join-Path $testInputFile.Download.ParentFolder 'London\123456London.txt'
-                }
-            }
-        )
         Mock Get-SFTPChildItem {
             $testData | Select-Object -Property * -ExcludeProperty 'Destination'
         }

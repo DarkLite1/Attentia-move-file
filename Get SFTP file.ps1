@@ -234,11 +234,28 @@ Process {
                     Error               = $null
                 }
                 
-                #region Create file download folder
-                $folderName = $result.FileName.SubString(
-                    6, $result.FileName.Length - 10
-                )
+                #region Get folder name
+                $tmpStrings = $result.FileName.Split('_')
 
+                if (-not ($companyCode = $tmpStrings[1])) {
+                    throw 'No company code found in the file name'
+                }
+                
+                if (-not ($locationCode = $tmpStrings[3])) {
+                    throw 'No location code found in the file name'
+                }
+
+                $folderName = ($ChildFolderNameMappingTable.Where({
+                    ($_.LocationCode -eq $locationCode) -and
+                    ($_.CompanyCode -eq $companyCode) 
+                        }, 'First')).FolderName
+
+                if (-not $folderName) {
+                    $folderName = '{0} {1}' -f $companyCode, $locationCode
+                }
+                #endregion
+
+                #region Create file download folder
                 if (-not $fileDownloadFolders.ContainsKey($folderName)) {
                     try {
                         $testPathParams = @{
