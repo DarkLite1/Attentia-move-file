@@ -4,20 +4,43 @@
 
 <#
 .SYNOPSIS
-    Get files from an SFTP server.
+    Download files from an SFTP server.
 
 .DESCRIPTION
-    Retrieve a single file or multiple files from an SFTP server and save them
-    in the destination folder. 
+    Retrieve all files in a specified folder from the SFTP server and save them 
+    in a custom folder based on the file name.
 
-.PARAMETER UserName
+.PARAMETER ImportFile
+    A .JSON file that contains all the parameters used by the script.
+
+.PARAMETER MailTo
+    E-mail addresses of where to send the summary e-mail
+
+.PARAMETER Download.OverwriteExistingFile
+    Overwrite a file when a file with the same name already exists in the 
+    download folder.
+
+.PARAMETER Download.ParentFolder
+    The destination folder where the file will be saved.
+
+.PARAMETER Download.ChildFolderNameMappingTable
+    When a file name has a matching company code and location code, the folder 
+    name is used to generate the download folder where the file is stored.
+
+.PARAMETER Sftp.Credential.UserName
     The user name used to authenticate to the SFTP server.
 
-.PARAMETER Password
+.PARAMETER Sftp.Credential.Password
     The password used to authenticate to the SFTP server.
 
-.PARAMETER DownloadFolder
-    The destination folder where the file will be saved.
+.PARAMETER Sftp.ComputerName
+    The URL where the SFTP server can be reached.
+
+.PARAMETER Sftp.Path
+    Path on the SFTP server where the files are located.
+
+.PARAMETER Sftp.RemoveFileAfterDownload
+    When the file is correctly downloaded, remove it from the SFTP server.
 #>
 
 [CmdLetBinding()]
