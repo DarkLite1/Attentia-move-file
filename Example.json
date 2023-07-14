@@ -1,0 +1,23 @@
+{
+  "MailTo": ["bob@contoso.com"],
+  "Download": {
+    "OverwriteExistingFile": false,
+    "ParentFolder": "C:\\Application x",
+    "ChildFolderNameMappingTable": [
+      {
+        "FolderName": "Blue collars",
+        "CompanyCode": "987789",
+        "LocationCode": "123"
+      }
+    ]
+  },
+  "Sftp": {
+    "Credential": {
+      "UserName": "APP_X_SFTP_USERNAME",
+      "Password": "APP_X_SFTP_PASSWORD"
+    },
+    "ComputerName": "ftp.appx.be",
+    "Path": "/shared",
+    "RemoveFileAfterDownload": true
+  }
+}
