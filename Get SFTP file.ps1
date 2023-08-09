@@ -250,8 +250,8 @@ Process {
                 $result = [PSCustomObject]@{
                     FileName            = $sftpFile.Name
                     FileLastWriteTime   = $sftpFile.LastWriteTime 
-                    DownloadedOn        = $null
                     DownloadFolder      = $null
+                    DownloadedOn        = $null
                     RemovedOnSftpServer = $false
                     Error               = $null
                 }
@@ -468,6 +468,14 @@ End {
                 <tr>
                     <td>Errors</td>
                     <td>$($counter.DownloadErrors)</td>
+                </tr>
+                <tr>
+                    <td>Overwrite downloaded files</td>
+                    <td>$($Download.OverwriteExistingFile)</td>
+                </tr>
+                <tr>
+                    <td>Remove files on SFTP server after download</td>
+                    <td>$($Sftp.RemoveFileAfterDownload)</td>
                 </tr>
             </table>
         "
