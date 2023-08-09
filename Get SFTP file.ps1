@@ -305,6 +305,7 @@ Process {
                     }
                     catch {
                         $M = "Failed creating file download folder '{0}': $_" -f $testPathParams.Path
+                        $Error.RemoveAt(0)
                         throw $M
                     }
                 }
@@ -333,7 +334,9 @@ Process {
                     $result.Downloaded = $true
                 }
                 catch {
-                    throw "Failed downloading file: $_"
+                    $M = "Failed downloading file: $_"
+                    $Error.RemoveAt(0)
+                    throw $M
                 }
 
                 try {    
@@ -353,7 +356,9 @@ Process {
                     }
                 }
                 catch {
-                    throw "Failed removing file: $_"
+                    $M = "Failed removing file: $_"
+                    $Error.RemoveAt(0)
+                    throw $M
                 }
                 #endregion
             }
