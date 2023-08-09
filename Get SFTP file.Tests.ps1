@@ -436,7 +436,7 @@ Describe 'when all tests pass' {
             ($Priority -eq 'Normal') -and
             ($Subject -eq '2/2 files downloaded') -and
             ($Attachments -like '*- Log.xlsx') -and
-            ($Message -like "*table*Files on server*2*Files downloaded*2*Errors*0*")
+            ($Message -like "*table*SFTP files*2*Files downloaded*2*Errors*0*")
             }
         }
     }

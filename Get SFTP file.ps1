@@ -413,10 +413,11 @@ End {
 
         #region Error counters
         $counter = @{
-            FilesOnServer   = $results.Count
-            FilesDownloaded = $results.Where({ $_.DownloadedOn }).Count
-            DownloadErrors  = $results.Where({ $_.Error }).Count
-            SystemErrors    = (
+            FilesOnServer       = $results.Count
+            FilesDownloaded     = $results.Where({ $_.DownloadedOn }).Count
+            DownloadErrors      = $results.Where({ $_.Error }).Count
+            RemovedOnSftpServer = $results.Where({ $_.RemovedOnSftpServer }).Count
+            SystemErrors        = (
                 $Error.Exception.Message | Measure-Object
             ).Count
         }
@@ -455,10 +456,29 @@ End {
         $summaryHtmlTable = "
             <table>
                 <tr>
-                    <th colspan=`"2`">$($Sftp.ComputerName) - $($Sftp.Path)</th>
+                    <th colspan=`"2`">Input parameters</th>
                 </tr>
                 <tr>
-                    <td>Files on server</td>
+                    <td>SFTP hostname</td>
+                    <td>$($Sftp.ComputerName)</td>
+                </tr>
+                <tr>
+                    <td>SFTP path</td>
+                    <td>$($Sftp.Path)</td>
+                </tr>
+                <tr>
+                    <td>Overwrite downloaded files</td>
+                    <td>$($Download.OverwriteExistingFile)</td>
+                </tr>
+                <tr>
+                    <td>Remove files from SFTP server</td>
+                    <td>$($Sftp.RemoveFileAfterDownload)</td>
+                </tr>
+                <tr>
+                    <th colspan=`"2`">Execution results</th>
+                </tr>
+                <tr>
+                    <td>SFTP files</td>
                     <td>$($counter.FilesOnServer)</td>
                 </tr>
                 <tr>
@@ -466,17 +486,14 @@ End {
                     <td>$($counter.FilesDownloaded)</td>
                 </tr>
                 <tr>
+                    <td>Files removed on SFTP server</td>
+                    <td>$($counter.RemovedOnSftpServer)</td>
+                </tr>
+                <tr>
                     <td>Errors</td>
                     <td>$($counter.DownloadErrors)</td>
                 </tr>
-                <tr>
-                    <td>Overwrite downloaded files</td>
-                    <td>$($Download.OverwriteExistingFile)</td>
-                </tr>
-                <tr>
-                    <td>Remove files on SFTP server after download</td>
-                    <td>$($Sftp.RemoveFileAfterDownload)</td>
-                </tr>
+                
             </table>
         "
         #endregion
