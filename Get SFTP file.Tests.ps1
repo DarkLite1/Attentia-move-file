@@ -391,7 +391,6 @@ Describe 'when all tests pass' {
                 @{
                     FileName          = $testData[0].Name
                     FileLastWriteTime = $testData[0].LastWriteTime
-                    Downloaded        = $true
                     DownloadedOn      = Get-Date
                     DownloadFolder    = $testData[0].Destination.Folder
                     Error             = $null
@@ -399,7 +398,6 @@ Describe 'when all tests pass' {
                 @{
                     FileName          = $testData[1].Name
                     FileLastWriteTime = $testData[1].LastWriteTime
-                    Downloaded        = $true
                     DownloadedOn      = Get-Date
                     DownloadFolder    = $testData[1].Destination.Folder
                     Error             = $null
@@ -423,7 +421,6 @@ Describe 'when all tests pass' {
                 }
                 $actualRow.FileLastWriteTime.ToString('yyyyMMdd HHmmss') | 
                 Should -Be $testRow.FileLastWriteTime.ToString('yyyyMMdd HHmmss')
-                $actualRow.Downloaded | Should -Be $testRow.Downloaded
                 $actualRow.DownloadedOn.ToString('yyyyMMdd') | 
                 Should -Be $testRow.DownloadedOn.ToString('yyyyMMdd')
                 $actualRow.DownloadFolder | Should -Be $testRow.DownloadFolder

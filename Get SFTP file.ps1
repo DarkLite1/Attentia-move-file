@@ -250,7 +250,6 @@ Process {
                 $result = [PSCustomObject]@{
                     FileName            = $sftpFile.Name
                     FileLastWriteTime   = $sftpFile.LastWriteTime 
-                    Downloaded          = $false
                     DownloadedOn        = $null
                     DownloadFolder      = $null
                     RemovedOnSftpServer = $false
@@ -331,7 +330,6 @@ Process {
                     Get-SFTPItem @params
     
                     $result.DownloadedOn = Get-Date
-                    $result.Downloaded = $true
                 }
                 catch {
                     $M = "Failed downloading file: $_"
@@ -416,7 +414,7 @@ End {
         #region Error counters
         $counter = @{
             FilesOnServer   = $results.Count
-            FilesDownloaded = $results.Where({ $_.Downloaded }).Count
+            FilesDownloaded = $results.Where({ $_.DownloadedOn }).Count
             DownloadErrors  = $results.Where({ $_.Error }).Count
             SystemErrors    = (
                 $Error.Exception.Message | Measure-Object
