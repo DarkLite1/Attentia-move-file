@@ -109,6 +109,7 @@ Begin {
             Where-Object { -not $Download.$_ } | ForEach-Object {
                 throw "No '$_' found in 'Download'."
             }
+
             if (-not ($ChildFolderNameMappingTable = $file.Download.ChildFolderNameMappingTable)) {
                 throw "No 'ChildFolderNameMappingTable' found."
             }
@@ -118,6 +119,18 @@ Begin {
                     throw "No '$_' found in the 'Download.ChildFolderNameMappingTable'."
                 }
             }
+            $duplicateChildFolderNameMappingTable = $ChildFolderNameMappingTable | 
+            Group-Object -Property { 
+                '{0} - {1}' -f $_.CompanyCode, $_.LocationCode 
+            } | Where-Object { 
+                $_.Count -ge 2 
+            }
+
+            if ($duplicateChildFolderNameMappingTable) {
+                $M = "Property 'ChildFolderNameMappingTable' contains a duplicate combination of CompanyCode and LocationCode: {0}" -f $duplicateChildFolderNameMappingTable.Name -join ', '
+                throw $M
+            }
+
             $Sftp = @{
                 Credential              = @{
                     UserName = Get-EnvironmentVariableValueHC -Name $file.Sftp.Credential.UserName

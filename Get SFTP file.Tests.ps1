@@ -14,6 +14,11 @@ BeforeAll {
                     CompanyCode  = '577600'
                     LocationCode = '057'
                 }
+                @{
+                    FolderName   = 'London'
+                    CompanyCode  = '577601'
+                    LocationCode = '057'
+                }
             )
         }
         Sftp     = @{
@@ -269,6 +274,34 @@ Describe 'send an e-mail to the admin when' {
                     }
                 }
             }
+            it 'ChildFolderNameMappingTable contains duplicates' {
+                $testNewInputFile = Copy-ObjectHC $testInputFile
+                $testNewInputFile.Download.ChildFolderNameMappingTable = @(
+                    @{
+                        FolderName   = 'Brussels'
+                        CompanyCode  = '577600'
+                        LocationCode = '057'
+                    }
+                    @{
+                        FolderName   = 'Genk'
+                        CompanyCode  = '577600'
+                        LocationCode = '057'
+                    }
+                )
+
+                $testNewInputFile | ConvertTo-Json -Depth 5 | 
+                Out-File @testOutParams
+                
+                .$testScript @testParams
+
+                Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
+                    (&$MailAdminParams) -and 
+                    ($Message -like "*$ImportFile*Property 'ChildFolderNameMappingTable' contains a duplicate combination of CompanyCode and LocationCode*")
+                }
+                Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
+                    $EntryType -eq 'Error'
+                }
+            } -tag test
         }
     }
     It 'the parent download folder does not exist' {
