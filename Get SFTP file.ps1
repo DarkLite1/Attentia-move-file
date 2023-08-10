@@ -456,26 +456,7 @@ End {
         $summaryHtmlTable = "
             <table>
                 <tr>
-                    <th colspan=`"2`">Input parameters</th>
-                </tr>
-                <tr>
-                    <td>SFTP hostname</td>
-                    <td>$($Sftp.ComputerName)</td>
-                </tr>
-                <tr>
-                    <td>SFTP path</td>
-                    <td>$($Sftp.Path)</td>
-                </tr>
-                <tr>
-                    <td>Overwrite downloaded files</td>
-                    <td>$($Download.OverwriteExistingFile)</td>
-                </tr>
-                <tr>
-                    <td>Remove files from SFTP server</td>
-                    <td>$($Sftp.RemoveFileAfterDownload)</td>
-                </tr>
-                <tr>
-                    <th colspan=`"2`">Execution results</th>
+                    <th colspan=`"2`">Summary</th>
                 </tr>
                 <tr>
                     <td>SFTP files</td>
@@ -493,7 +474,29 @@ End {
                     <td>Errors</td>
                     <td>$($counter.DownloadErrors)</td>
                 </tr>
-                
+                <tr>
+                    <th colspan=`"2`">Parameters</th>
+                </tr>
+                <tr>
+                    <td>SFTP hostname</td>
+                    <td>$($Sftp.ComputerName)</td>
+                </tr>
+                <tr>
+                    <td>SFTP path</td>
+                    <td>$($Sftp.Path)</td>
+                </tr>
+                <tr>
+                    <td>Download folder</td>
+                    <td><a href=`"$($Download.ParentFolder)`">$($($Download.ParentFolder))</a></td>
+                </tr>
+                <tr>
+                    <td>Overwrite downloaded files</td>
+                    <td>$($Download.OverwriteExistingFile)</td>
+                </tr>
+                <tr>
+                    <td>Remove files from SFTP server</td>
+                    <td>$($Sftp.RemoveFileAfterDownload)</td>
+                </tr>
             </table>
         "
         #endregion
@@ -503,7 +506,7 @@ End {
             Bcc       = $ScriptAdmin
             Message   = "
                         $systemErrorsHtmlList
-                        <p>Summary:</p>
+                        <p>Download files from an SFTP server.</p>
                         $summaryHtmlTable"
             LogFolder = $LogParams.LogFolder
             Header    = $ScriptName
