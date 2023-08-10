@@ -90,7 +90,8 @@ Begin {
         $M = "Import .json file '$ImportFile'"
         Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
       
-        $file = Get-Content $ImportFile -Raw -EA Stop | ConvertFrom-Json
+        $file = Get-Content $ImportFile -Raw -EA Stop -Encoding UTF8 | 
+        ConvertFrom-Json
         #endregion
       
         #region Test .json file properties
@@ -391,19 +392,39 @@ End {
     try {
         $mailParams = @{}
 
-        #region Create Excel worksheet 
+        $excelParams = @{
+            Path         = $logFile + ' - Log.xlsx'
+            AutoSize     = $true
+            FreezeTopRow = $true
+        }
+
+        #region Create Excel worksheet Overview
         if ($results) {
-            $M = "Export $($results.Count) rows to Excel"
+            $excelParams.WorksheetName = 'Overview'
+            $excelParams.TableName = 'Overview'
+
+            $M = "Export {0} rows to Excel sheet '{1}'" -f 
+            $results.Count, $excelParams.WorksheetName
             Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
             
-            $excelParams = @{
-                Path          = $logFile + ' - Log.xlsx'
-                AutoSize      = $true
-                FreezeTopRow  = $true
-                WorksheetName = 'Overview'
-                TableName     = 'Overview'
-            }
             $results | Export-Excel @excelParams
+
+            $mailParams.Attachments = $excelParams.Path
+        }
+        #endregion
+
+        #region Create Excel worksheet FolderNameMappingTable
+        if ($Download.ChildFolderNameMappingTable.Count -ne 0) {
+            $excelParams.WorksheetName = 'FolderNameMappingTable'
+            $excelParams.TableName = 'FolderNameMappingTable'
+
+            $M = "Export {0} rows to Excel sheet '{1}'" -f 
+            $Download.ChildFolderNameMappingTable.Count,
+            $excelParams.WorksheetName
+            Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
+            
+            $Download.ChildFolderNameMappingTable | Sort-Object 'FolderName' |
+            Export-Excel @excelParams
 
             $mailParams.Attachments = $excelParams.Path
         }
