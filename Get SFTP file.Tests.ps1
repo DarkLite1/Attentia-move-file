@@ -301,7 +301,7 @@ Describe 'send an e-mail to the admin when' {
                 Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
                     $EntryType -eq 'Error'
                 }
-            } -tag test
+            }
         }
     }
     It 'the parent download folder does not exist' {
