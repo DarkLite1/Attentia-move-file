@@ -1,6 +1,6 @@
+#Requires -Version 7
 #Requires -Modules Pester
 #Requires -Modules Toolbox.EventLog, Toolbox.HTML
-#Requires -Version 5.1
 
 BeforeAll {
     $testInputFile = @{
