@@ -1,23 +1,23 @@
 {
-  "MailTo": ["bob@contoso.com"],
-  "Download": {
-    "OverwriteExistingFile": false,
-    "ParentFolder": "C:\\Application x",
-    "ChildFolderNameMappingTable": [
-      {
-        "FolderName": "Blue collars",
-        "CompanyCode": "987789",
-        "LocationCode": "123"
-      }
-    ]
+  "SourceFolder": "C:\\SFTP Download folder",
+  "DestinationFolder": "C:\\Reports",
+  "ChildFolderNameMappingTable": [
+    {
+      "FolderName": "Blue collars",
+      "CompanyCode": "987789",
+      "LocationCode": "123"
+    }
+  ],
+  "Option": {
+    "OverwriteFile": false
   },
-  "Sftp": {
-    "Credential": {
-      "UserName": "APP_X_SFTP_USERNAME",
-      "Password": "APP_X_SFTP_PASSWORD"
-    },
-    "ComputerName": "ftp.appx.be",
-    "Path": "/shared",
-    "RemoveFileAfterDownload": true
+  "SendMail": {
+    "To": ["bob@contoso.com"],
+    "When": "Always",
+    "?": "When: Never | OnlyOnError | OnlyOnErrorOrAction | Always"
+  },
+  "ExportExcelFile": {
+    "When": "OnlyOnErrorOrAction",
+    "?": "When: Never | OnlyOnError | OnlyOnErrorOrAction"
   }
 }
