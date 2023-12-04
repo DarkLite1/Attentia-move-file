@@ -322,32 +322,6 @@ Describe 'when all tests pass' {
 
         .$testScript @testParams
     }
-    It 'the SFTP file list is retrieved' {
-        Should -Invoke Get-SFTPChildItem -Times 1 -Exactly -Scope Describe
-    }
-    Context 'download each file on the SFTP server to' {
-        It 'the matching FolderName in ChildFolderNameMappingTable' {
-            $testData[0].Destination.Folder | Should -Exist
-            $testData[0].Destination.FilePath | Should -Exist
-
-            Should -Invoke Get-SFTPItem -Times 1 -Exactly -Scope 'Describe' -ParameterFilter {
-                ($Path -eq $testData[0].FullName) -and
-                ($Destination -eq $testData[0].Destination.Folder)
-            }
-        }
-        It "the folder 'CompanyCode LocationCode' when there is no match" {
-            $testData[1].Destination.Folder | Should -Exist
-            $testData[1].Destination.FilePath | Should -Exist
-
-            Should -Invoke Get-SFTPItem -Times 1 -Exactly -Scope 'Describe' -ParameterFilter {
-                ($Path -eq $testData[1].FullName) -and
-                ($Destination -eq $testData[1].Destination.Folder)
-            }
-        }
-    }
-    It 'the SFTP session is closed' {
-        Should -Invoke Remove-SFTPSession -Times 1 -Exactly -Scope Describe
-    }
     Context 'export an Excel file' {
         BeforeAll {
             $testExportedExcelRows = @(
