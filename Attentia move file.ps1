@@ -163,7 +163,125 @@ Begin {
 
 Process {
     Try {
+        $sourceFiles = Get-ChildItem -LiteralPath $file.SourceFolder -File
 
+        if (-not $sourceFiles) {
+            Write-Verbose "No files found in folder '$($file.SourceFolder)'"
+            Write-EventLog @EventEndParams; Exit
+        }
+
+        $destinationFolders = @{}
+
+        $results = foreach ($sourceFile in $sourceFiles) {
+            try {
+                $result = [PSCustomObject]@{
+                    SourceFile            = $sourceFile
+                    DestinationFolderName = $null
+                    DateTime              = Get-Date
+                    Moved                 = $false
+                    Action                = @()
+                    Error                 = $null
+                }
+
+                #region Get destination folder name from file name
+                $tmpStrings = $sourceFile.Name.Split('_')
+
+                if (-not ($companyCode = $tmpStrings[1])) {
+                    throw 'No company code found in the file name'
+                }
+
+                if (-not ($locationCode = $tmpStrings[3])) {
+                    throw 'No location code found in the file name'
+                }
+
+                $result.DestinationFolderName =
+                ($file.ChildFolderNameMappingTable.Where(
+                    {
+                        ($_.LocationCode -eq $locationCode) -and
+                        ($_.CompanyCode -eq $companyCode)
+                    }, 'First'
+                )
+                ).FolderName
+
+                if (-not $result.DestinationFolderName) {
+                    $result.DestinationFolderName = '{0} {1}' -f
+                    $companyCode, $locationCode
+                }
+                #endregion
+
+                #region Create destination folder
+                if (-not $destinationFolders.ContainsKey(
+                        $result.DestinationFolderName
+                    )
+                ) {
+                    try {
+                        $joinParams = @{
+                            Path      = $file.DestinationFolder
+                            ChildPath = $result.DestinationFolderName
+                        }
+                        $testPathParams = @{
+                            Path        = Join-Path @joinParams
+                            PathType    = 'Container'
+                            ErrorAction = 'Stop'
+                        }
+
+                        if (-not (Test-Path @testPathParams)) {
+                            $M = "Create destination folder '{0}'" -f
+                            $testPathParams.Path
+                            Write-Verbose $M
+                            Write-EventLog @EventVerboseParams -Message $M
+
+                            $newItemParams = @{
+                                Path        = $testPathParams.Path
+                                ItemType    = 'Directory'
+                                ErrorAction = 'Stop'
+                            }
+                            $null = New-Item @newItemParams
+
+                            $result.Action += 'created destination folder'
+                        }
+
+                        $destinationFolders[$result.DestinationFolderName] =
+                        $testPathParams.Path
+                    }
+                    catch {
+                        $M = "Failed creating destination folder '{0}': $_" -f
+                        $testPathParams.Path
+                        $Error.RemoveAt(0)
+                        throw $M
+                    }
+                }
+                #endregion
+
+                #region Move file
+                $moveParams = @{
+                    LiteralPath = $result.SourceFile.FullName
+                    Destination = $destinationFolders[$result.DestinationFolderName]
+                    ErrorAction = 'Stop'
+                }
+
+                if ($file.Option.OverwriteFile) {
+                    $moveParams.Force = $true
+                }
+
+                Write-Verbose "Move file '$($moveParams.LiteralPath)' to '$($moveParams.Destination)'"
+
+                Move-Item @moveParams
+
+                $result.Action += 'file moved to the destination folder'
+                $result.Moved = $true
+                #endregion
+            }
+            catch {
+                $M = "Failed moving file '$($sourceFile.Name)': $_"
+                Write-Warning $M
+                $result.Error = $_
+                $Error.RemoveAt(0)
+            }
+            finally {
+                $result
+            }
+        }
     }
     Catch {
         Write-Warning $_
@@ -220,7 +338,7 @@ End {
         #region Error counters
         $counter = @{
             FilesOnServer       = $results.Count
-            FilesDownloaded     = $results.Where({ $_.DownloadedOn }).Count
+            FilesDownloaded     = $results.Where({ $_.MovedOn }).Count
             DownloadErrors      = $results.Where({ $_.Error }).Count
             RemovedOnSftpServer = $results.Where({ $_.RemovedOnSftpServer }).Count
             SystemErrors        = (

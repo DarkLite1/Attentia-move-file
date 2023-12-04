@@ -32,21 +32,17 @@ BeforeAll {
 
     $testData = @(
         [PSCustomObject]@{
-            Name          = 'BAND_577600_A_057_202306301556.pdf'
-            FullName      = '\folder\BAND_577600_A_057_202306301556.pdf'
-            LastWriteTime = (Get-Date).AddDays(-3)
-            Destination   = @{
+            FileName    = 'BAND_577600_A_057_202306301556.pdf'
+            Destination = @{
                 Folder   = Join-Path $testInputFile.DestinationFolder 'Brussels'
                 FilePath = Join-Path $testInputFile.DestinationFolder 'Brussels\BAND_577600_A_057_202306301556.pdf'
             }
         }
         [PSCustomObject]@{
-            Name          = 'BAND_999900_A_123_202307301544.pdf'
-            FullName      = '\folder\BAND_999900_A_123_202307301544.pdf'
-            LastWriteTime = (Get-Date).AddDays(-4)
-            Destination   = @{
-                Folder   = Join-Path $testInputFile.DestinationFolder '999900 123'
-                FilePath = Join-Path $testInputFile.DestinationFolder '999900 123\BAND_999900_A_123_202307301544.pdf'
+            FileName    = 'BAND_C2_A_L2_20230.pdf'
+            Destination = @{
+                Folder   = Join-Path $testInputFile.DestinationFolder 'C2 L2'
+                FilePath = Join-Path $testInputFile.DestinationFolder 'C2 L2\BAND_C2_A_L2_20230.pdf'
             }
         }
     )
@@ -296,31 +292,34 @@ Describe 'send an e-mail to the admin when' {
             ($Message -like "*Destination folder '$($testNewInputFile.DestinationFolder)' not found*")
         }
     }
-} -Tag test
+}
 Describe 'when all tests pass' {
     BeforeAll {
-        Mock Get-SFTPChildItem {
-            $testData | Select-Object -Property * -ExcludeProperty 'Destination'
-        }
-        Mock Get-SFTPItem {
-            $null = New-Item -Path $testData[0].Destination.FilePath
-        } -ParameterFilter {
-            ($SessionId) -and
-            ($Path -eq $testData[0].FullName) -and
-            ($Destination -eq $testData[0].Destination.Folder)
-        }
-        Mock Get-SFTPItem {
-            $null = New-Item -Path $testData[1].Destination.FilePath
-        } -ParameterFilter {
-            ($SessionId) -and
-            ($Path -eq $testData[1].FullName) -and
-            ($Destination -eq $testData[1].Destination.Folder)
-        }
-
         $testInputFile | ConvertTo-Json -Depth 5 |
         Out-File @testOutParams
 
+        $testFiles = $testData.ForEach(
+            {
+                $testNewItemParams = @{
+                    Path     = (
+                        $testInputFile.SourceFolder + '\' + $_.FileName)
+                    ItemType = 'File'
+                }
+                New-Item @testNewItemParams
+            }
+        )
+
         .$testScript @testParams
+    }
+    Context 'the files are moved from the source to' {
+        It 'a specific destination folder' {
+            $testData.ForEach(
+                { $_.Destination.FilePath | Should -Exist }
+            )
+            $testFiles.ForEach(
+                { $_.FullName | Should -Not -Exist }
+            )
+        }
     }
     Context 'export an Excel file' {
         BeforeAll {
@@ -364,7 +363,7 @@ Describe 'when all tests pass' {
                 $actualRow.Error | Should -Be $testRow.Error
             }
         }
-    }
+    } -Tag test
     Context 'send an e-mail' {
         It 'to the user' {
             Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
@@ -378,75 +377,31 @@ Describe 'when all tests pass' {
         }
     }
 }
-Describe 'when OverwriteExistingFile is' {
-    BeforeAll {
-        Mock Get-SFTPChildItem {
-            $testData | Select-Object -Property * -ExcludeProperty 'Destination'
-        }
-    }
-    It 'true the file in the download folder is overwritten' {
-        $null = New-Item -Path $testData[0].Destination.FilePath -Force
-        $null = New-Item -Path $testData[1].Destination.FilePath -Force
+Context 'Option.OverwriteFile' {
+    It 'if true the destination file is overwritten' {
+        Mock Move-Item
 
-        Mock Get-SFTPItem {
-            $null = New-Item -Path $testData[0].Destination.FilePath -Force
-        } -ParameterFilter {
-            ($SessionId) -and
-            ($Path -eq $testData[0].FullName) -and
-            ($Destination -eq $testData[0].Destination.Folder) -and
-            ($Force)
-        }
-        Mock Get-SFTPItem {
-            $null = New-Item -Path $testData[1].Destination.FilePath -Force
-        } -ParameterFilter {
-            ($SessionId) -and
-            ($Path -eq $testData[1].FullName) -and
-            ($Destination -eq $testData[1].Destination.Folder) -and
-            ($Force)
-        }
+        $testData.ForEach(
+            {
+                $testNewItemParams = @{
+                    Path     = (
+                        $testInputFile.SourceFolder + '\' + $_.FileName)
+                    ItemType = 'File'
+                }
+                New-Item @testNewItemParams
+            }
+        )
 
         $testNewInputFile = Copy-ObjectHC $testInputFile
-        $testNewInputFile.Download.OverwriteExistingFile = $true
+        $testNewInputFile.Option.OverwriteFile = $true
 
         $testNewInputFile | ConvertTo-Json -Depth 5 |
         Out-File @testOutParams
 
         .$testScript @testParams
 
-        Should -Invoke Get-SFTPItem -Times 2 -Exactly -ParameterFilter {
-            $Force
-        }
-
-    }
-    It 'false the file in the parent folder if now overwritten and an error is logged' {
-        $null = New-Item -Path $testData[0].Destination.FilePath -Force
-        $null = New-Item -Path $testData[1].Destination.FilePath -Force
-
-        Mock Get-SFTPItem {
-            $null = New-Item -Path $testData[0].Destination.FilePath
-        } -ParameterFilter {
-            ($SessionId) -and
-            ($Path -eq $testData[0].FullName) -and
-            ($Destination -eq $testData[0].Destination.Folder)
-        }
-        Mock Get-SFTPItem {
-            $null = New-Item -Path $testData[1].Destination.FilePath
-        } -ParameterFilter {
-            ($SessionId) -and
-            ($Path -eq $testData[1].FullName) -and
-            ($Destination -eq $testData[1].Destination.Folder)
-        }
-
-        $testNewInputFile = Copy-ObjectHC $testInputFile
-        $testNewInputFile.Download.OverwriteExistingFile = $false
-
-        $testNewInputFile | ConvertTo-Json -Depth 5 |
-        Out-File @testOutParams
-
-        .$testScript @testParams
-
-        Should -Invoke Get-SFTPItem -Times 2 -Exactly -ParameterFilter {
-            -not $Force
+        Should -Invoke Move-Item -Times $testData.Count -Exactly -ParameterFilter {
+            ($Force)
         }
     }
 }
