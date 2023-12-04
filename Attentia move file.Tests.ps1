@@ -325,18 +325,22 @@ Describe 'when all tests pass' {
         BeforeAll {
             $testExportedExcelRows = @(
                 @{
-                    FileName          = $testData[0].Name
-                    FileLastWriteTime = $testData[0].LastWriteTime
-                    DownloadedOn      = Get-Date
-                    DownloadFolder    = $testData[0].Destination.Folder
-                    Error             = $null
+                    DateTime          = Get-Date
+                    SourceFolder      = $testInputFile.SourceFolder
+                    DestinationFolder = $testData[0].Destination.Folder
+                    FileName          = $testData[0].FileName
+                    Successful        = $true
+                    Action            = 'created destination folder, file moved'
+                    Error             = ''
                 }
                 @{
-                    FileName          = $testData[1].Name
-                    FileLastWriteTime = $testData[1].LastWriteTime
-                    DownloadedOn      = Get-Date
-                    DownloadFolder    = $testData[1].Destination.Folder
-                    Error             = $null
+                    DateTime          = Get-Date
+                    SourceFolder      = $testInputFile.SourceFolder
+                    DestinationFolder = $testData[1].Destination.Folder
+                    FileName          = $testData[1].FileName
+                    Successful        = $true
+                    Action            = 'created destination folder, file moved'
+                    Error             = ''
                 }
             )
 
@@ -355,11 +359,12 @@ Describe 'when all tests pass' {
                 $actualRow = $actual | Where-Object {
                     $_.FileName -eq $testRow.FileName
                 }
-                $actualRow.FileLastWriteTime.ToString('yyyyMMdd HHmmss') |
-                Should -Be $testRow.FileLastWriteTime.ToString('yyyyMMdd HHmmss')
-                $actualRow.DownloadedOn.ToString('yyyyMMdd') |
-                Should -Be $testRow.DownloadedOn.ToString('yyyyMMdd')
-                $actualRow.DownloadFolder | Should -Be $testRow.DownloadFolder
+                $actualRow.DateTime.ToString('yyyyMMdd') |
+                Should -Be $testRow.DateTime.ToString('yyyyMMdd')
+                $actualRow.SourceFolder | Should -Be $testRow.SourceFolder
+                $actualRow.DestinationFolder | Should -Be $testRow.DestinationFolder
+                $actualRow.Successful | Should -Be $testRow.Successful
+                $actualRow.Action | Should -Be $testRow.Action
                 $actualRow.Error | Should -Be $testRow.Error
             }
         }

@@ -268,7 +268,7 @@ Process {
 
                 Move-Item @moveParams
 
-                $result.Action += 'file moved to the destination folder'
+                $result.Action += 'file moved'
                 $result.Moved = $true
                 #endregion
             }
@@ -310,23 +310,54 @@ End {
             $results.Count, $excelParams.WorksheetName
             Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
 
-            $results | Export-Excel @excelParams
+            $exportToExcel = $results |
+            Select-Object -ExcludeProperty 'Action' -Property 'DateTime',
+            @{
+                Name       = 'SourceFolder'
+                Expression = { $file.SourceFolder }
+            },
+            @{
+                Name       = 'DestinationFolder'
+                Expression = {
+                    $file.DestinationFolder + '\' + $_.DestinationFolderName
+                }
+            },
+            @{
+                Name       = 'FileName'
+                Expression = {
+                    $_.SourceFile.Name
+                }
+            },
+            @{
+                Name       = 'Successful'
+                Expression = { $_.Moved }
+            },
+            @{
+                Name       = 'Action'
+                Expression = { $_.Action -join ', ' }
+            },
+            @{
+                Name       = 'Error'
+                Expression = { $_.Error -join ', ' }
+            }
+
+            $exportToExcel | Export-Excel @excelParams
 
             $mailParams.Attachments = $excelParams.Path
         }
         #endregion
 
         #region Create Excel worksheet FolderNameMappingTable
-        if ($Download.ChildFolderNameMappingTable.Count -ne 0) {
+        if ($file.ChildFolderNameMappingTable) {
             $excelParams.WorksheetName = 'FolderNameMappingTable'
             $excelParams.TableName = 'FolderNameMappingTable'
 
             $M = "Export {0} rows to Excel sheet '{1}'" -f
-            $Download.ChildFolderNameMappingTable.Count,
+            $file.ChildFolderNameMappingTable.Count,
             $excelParams.WorksheetName
             Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
 
-            $Download.ChildFolderNameMappingTable | Sort-Object 'FolderName' |
+            $file.ChildFolderNameMappingTable | Sort-Object 'FolderName' |
             Export-Excel @excelParams
 
             $mailParams.Attachments = $excelParams.Path
@@ -337,11 +368,10 @@ End {
 
         #region Error counters
         $counter = @{
-            FilesOnServer       = $results.Count
-            FilesDownloaded     = $results.Where({ $_.MovedOn }).Count
-            DownloadErrors      = $results.Where({ $_.Error }).Count
-            RemovedOnSftpServer = $results.Where({ $_.RemovedOnSftpServer }).Count
-            SystemErrors        = (
+            SourceFiles  = $results.Count
+            FilesMoved   = $results.Where({ $_.Moved }).Count
+            MoveErrors   = $results.Where({ $_.Error }).Count
+            SystemErrors = (
                 $Error.Exception.Message | Measure-Object
             ).Count
         }
@@ -349,14 +379,14 @@ End {
 
         #region Mail subject and priority
         $mailParams.Priority = 'Normal'
-        $mailParams.Subject = '{0}/{1} file{2} downloaded' -f
-        $counter.FilesDownloaded, $counter.FilesOnServer,
+        $mailParams.Subject = '{0}/{1} file{2} moved' -f
+        $counter.FilesMoved, $counter.SourceFiles,
         $(
-            if ($counter.FilesOnServer -ne 1) { 's' }
+            if ($counter.SourceFiles -ne 1) { 's' }
         )
 
         if (
-            $totalErrorCount = $counter.DownloadErrors + $counter.SystemErrors
+            $totalErrorCount = $counter.MoveErrors + $counter.SystemErrors
         ) {
             $mailParams.Priority = 'High'
             $mailParams.Subject += ", $totalErrorCount error{0}" -f $(
@@ -384,11 +414,11 @@ End {
                 </tr>
                 <tr>
                     <td>SFTP files</td>
-                    <td>$($counter.FilesOnServer)</td>
+                    <td>$($counter.SourceFiles)</td>
                 </tr>
                 <tr>
                     <td>Files downloaded</td>
-                    <td>$($counter.FilesDownloaded)</td>
+                    <td>$($counter.FilesMoved)</td>
                 </tr>
                 <tr>
                     <td>Files removed on SFTP server</td>
@@ -396,7 +426,7 @@ End {
                 </tr>
                 <tr>
                     <td>Errors</td>
-                    <td>$($counter.DownloadErrors)</td>
+                    <td>$($counter.MoveErrors)</td>
                 </tr>
                 <tr>
                     <th colspan=`"2`">Parameters</th>
@@ -411,11 +441,11 @@ End {
                 </tr>
                 <tr>
                     <td>Download folder</td>
-                    <td><a href=`"$($Download.Path)`">$($($Download.Path))</a></td>
+                    <td><a href=`"$($file.Path)`">$($($file.Path))</a></td>
                 </tr>
                 <tr>
                     <td>Overwrite downloaded files</td>
-                    <td>$($Download.OverwriteExistingFile)</td>
+                    <td>$($file.OverwriteExistingFile)</td>
                 </tr>
                 <tr>
                     <td>Remove files from SFTP server</td>
