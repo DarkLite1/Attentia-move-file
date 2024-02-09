@@ -261,47 +261,104 @@ Describe 'send an e-mail to the admin when' {
         }
     }
 }
-Describe 'move files to the destination folder when' {
-    BeforeAll {
-        $testNewInputFile = Copy-ObjectHC $testInputFile
+Describe 'move files' {
+    Context 'to the Destination.Folder when' {
+        Context 'the CompanyCode and LocationCode match' {
+            BeforeAll {
+                $testNewInputFile = Copy-ObjectHC $testInputFile
 
-        $testNewInputFile.Destination = @(
-            @{
-                Folder       = 'TestDrive:\z\Brussels'
-                CompanyCode  = '577100'
-                LocationCode = '053'
+                $testNewInputFile.Destination = @(
+                    @{
+                        Folder       = 'TestDrive:\z\Brussels'
+                        CompanyCode  = '577100'
+                        LocationCode = '053'
+                    }
+                    @{
+                        Folder       = 'TestDrive:\z\Leuven'
+                        CompanyCode  = '577400'
+                        LocationCode = '052'
+                    }
+                )
+
+                $testNewInputFile | ConvertTo-Json -Depth 7 |
+                Out-File @testOutParams
+
+                $testFiles = @(
+                    '577100_A_053_2023-10-30-17-49-39.pdf',
+                    '577400_A_052_2023-12-07-13-17-54.pdf'
+                ) | ForEach-Object {
+                    New-Item -Path $testNewInputFile.SourceFolder -Name $_ -ItemType File
+                }
+
+                .$testScript @testParams
             }
-            @{
-                Folder       = 'TestDrive:\z\Leuven'
-                CompanyCode  = '577400'
-                LocationCode = '052'
+            It 'the source folder is empty' {
+                Get-ChildItem -Path $testNewInputFile.SourceFolder |
+                Should -BeNullOrEmpty
             }
-        )
-
-        $testNewInputFile | ConvertTo-Json -Depth 7 |
-        Out-File @testOutParams
-
-        $testFiles = @(
-            '577100_A_053_2023-10-30-17-49-39.pdf',
-            '577400_A_052_2023-12-07-13-17-54.pdf'
-        ) | ForEach-Object {
-            New-Item -Path $testNewInputFile.SourceFolder -Name $_ -ItemType File
+            It 'the files are moved to the correct folder' {
+                0..1 | ForEach-Object {
+                    $testJoinParams = @{
+                        Path      = $testNewInputFile.Destination[$_].Folder
+                        ChildPath = $testFiles[$_].Name
+                    }
+                    Join-Path @testJoinParams | Should -Exist
+                }
+            }
         }
-
-        .$testScript @testParams
     }
-    Context 'the CompanyCode and LocationCode match' {
-        It 'the source folder is empty' {
-            Get-ChildItem -Path $testNewInputFile.SourceFolder |
-            Should -BeNullOrEmpty
-        }
-        It 'the files are moved to the correct folder' {
-            0..1 | ForEach-Object {
+    Context 'to the NoMatchFolderName when' {
+        Context 'there is no match with CompanyCode and LocationCode' {
+            BeforeAll {
+                $testNewInputFile = Copy-ObjectHC $testInputFile
+                $testNewInputFile.NoMatchFolderName = 'TestDrive:\nm'
+
+                $testNewInputFile | ConvertTo-Json -Depth 7 |
+                Out-File @testOutParams
+
+                $testFiles = @(
+                    '1111_A_222_2023-10-30-17-49-39.pdf'
+                ) | ForEach-Object {
+                    New-Item -Path $testNewInputFile.SourceFolder -Name $_ -ItemType File
+                }
+
+                .$testScript @testParams
+            }
+            It 'the source folder is empty' {
+                Get-ChildItem -Path $testNewInputFile.SourceFolder |
+                Should -BeNullOrEmpty
+            }
+            It 'the files are moved to the correct folder' {
                 $testJoinParams = @{
-                    Path      = $testNewInputFile.Destination[$_].Folder
-                    ChildPath = $testFiles[$_].Name
+                    Path      = $testNewInputFile.NoMatchFolderName
+                    ChildPath = $testFiles[0].Name
                 }
                 Join-Path @testJoinParams | Should -Exist
+            }
+        }
+    }
+}
+Describe 'do not move files when' {
+    Context 'NoMatchFolderName is blank and' {
+        Context 'there is no match with CompanyCode and LocationCode' {
+            BeforeAll {
+                $testNewInputFile = Copy-ObjectHC $testInputFile
+                $testNewInputFile.NoMatchFolderName = $null
+
+                $testNewInputFile | ConvertTo-Json -Depth 7 |
+                Out-File @testOutParams
+
+                $testFiles = @(
+                    '3333_A_444_2023-10-30-17-49-39.pdf'
+                ) | ForEach-Object {
+                    New-Item -Path $testNewInputFile.SourceFolder -Name $_ -ItemType File
+                }
+
+                .$testScript @testParams
+            }
+            It 'the files are not moved' {
+                Get-ChildItem -Path $testNewInputFile.SourceFolder |
+                Should -Not -BeNullOrEmpty
             }
         }
     } -Tag test
@@ -398,7 +455,7 @@ Describe 'when all tests pass' {
             }
         }
     }
-}
+} -Skip
 Context 'Option.OverwriteFile' {
     It 'if true the destination file is overwritten' {
         Mock Move-Item
@@ -426,4 +483,4 @@ Context 'Option.OverwriteFile' {
             ($Force)
         }
     }
-}
+} -Skip

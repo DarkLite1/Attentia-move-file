@@ -204,9 +204,9 @@ Process {
 
                 if (-not $result.DestinationFolder) {
                     if (-not $file.NoMatchFolderName) {
-                        $result.Action += "file not moved, no matching folder found in Destination and MoMatchFolderName is blank"
+                        $result.Error += "file not moved, no matching folder found in Destination and MoMatchFolderName is blank"
 
-                        $M = "File '$($result.SourceFile)' not moved, no matching folder found in Destination and MoMatchFolderName is blank"
+                        $M = "File '$($result.SourceFile)' not moved, no match with Destination.LocationCode and Destination.CompanyCode, and MoMatchFolderName is blank"
                         Write-Warning $M; Write-EventLog $EventWarnParams
                         Continue
                     }
