@@ -295,6 +295,15 @@ Describe 'move files to the destination folder when' {
             Get-ChildItem -Path $testNewInputFile.SourceFolder |
             Should -BeNullOrEmpty
         }
+        It 'the files are moved to the correct folder' {
+            0..1 | ForEach-Object {
+                $testJoinParams = @{
+                    Path      = $testNewInputFile.Destination[$_].Folder
+                    ChildPath = $testFiles[$_].Name
+                }
+                Join-Path @testJoinParams | Should -Exist
+            }
+        }
     } -Tag test
 }
 Describe 'when all tests pass' {
