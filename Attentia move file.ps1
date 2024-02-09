@@ -296,15 +296,18 @@ End {
 
         #region Counters
         $counter = @{
-            SourceFiles  = $results.Count
-            FilesMoved   = $results.Where({ $_.Moved }).Count
-            MoveErrors   = $results.Where({ $_.Error }).Count
-            SystemErrors = (
-                $Error.Exception.Message | Measure-Object
-            ).Count
+            SourceFiles = $results.Count
+            FilesMoved  = $results.Where({ $_.Moved }).Count
+            Actions     = $results.Where({ $_.Action }).Count
+            Errors      = @{
+                Move   = $results.Where({ $_.Error }).Count
+                System = (
+                    $Error.Exception.Message | Measure-Object
+                ).Count
+            }
         }
 
-        $counter.TotalErrors = $counter.MoveErrors + $counter.SystemErrors
+        $counter.TotalErrors = $counter.Errors.Move + $counter.Errors.System
         #endregion
 
         #region Create Excel worksheet Overview
@@ -312,12 +315,12 @@ End {
 
         if (
             (
-                ($task.ExportExcelFile.When -eq 'OnlyOnError') -and
+                ($file.ExportExcelFile.When -eq 'OnlyOnError') -and
                 ($counter.TotalErrors)
             ) -or
             (
-                ($task.ExportExcelFile.When -eq 'OnlyOnErrorOrAction') -and
-                (($counter.TotalErrors) -or ($counter.Total.Actions))
+                ($file.ExportExcelFile.When -eq 'OnlyOnErrorOrAction') -and
+                (($counter.TotalErrors) -or ($counter.Actions))
             )
         ) {
             $createExcelFile = $true
@@ -338,16 +341,23 @@ End {
                 Name       = 'SourceFolder'
                 Expression = { $file.SourceFolder }
             },
-            @{
-                Name       = 'DestinationFolder'
-                Expression = {
-                    $file.Destination.ParentFolder + '\' + $_.DestinationFolder
-                }
-            },
+            'DestinationFolder',
             @{
                 Name       = 'FileName'
                 Expression = {
                     $_.SourceFile.Name
+                }
+            },
+            @{
+                Name       = 'CompanyCode'
+                Expression = {
+                    $_.CompanyCode
+                }
+            },
+            @{
+                Name       = 'LocationCode'
+                Expression = {
+                    $_.LocationCode
                 }
             },
             @{
@@ -363,7 +373,7 @@ End {
                 Expression = { $_.Error -join ', ' }
             }
 
-            $exportToExcel | Export-Excel @excelParams
+            $exportToExcel | Export-Excel @excelParams -NoNumberConversion 'CompanyCode', 'LocationCode'
 
             $mailParams.Attachments = $excelParams.Path
         }
@@ -425,10 +435,10 @@ End {
         #endregion
 
         #region Create html lists
-        $systemErrorsHtmlList = if ($counter.SystemErrors) {
-            "<p>Detected <b>{0} non terminating error{1}</b>:{2}</p>" -f $counter.SystemErrors,
+        $systemErrorsHtmlList = if ($counter.Errors.System) {
+            "<p>Detected <b>{0} non terminating error{1}</b>:{2}</p>" -f $counter.Errors.System,
             $(
-                if ($counter.SystemErrors -ne 1) { 's' }
+                if ($counter.Errors.System -ne 1) { 's' }
             ),
             $(
                 $Error.Exception.Message | Where-Object { $_ } |
@@ -447,7 +457,7 @@ End {
                 </tr>
                 <tr>
                     <td>Errors</td>
-                    <td>$($counter.MoveErrors)</td>
+                    <td>$($counter.Errors.Move)</td>
                 </tr>
                 <tr>
                     <th colspan=`"2`">Parameters</th>

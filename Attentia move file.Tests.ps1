@@ -262,36 +262,36 @@ Describe 'send an e-mail to the admin when' {
     }
 }
 Describe 'move files' {
-    Context 'to the Destination.Folder when' {
-        Context 'the CompanyCode and LocationCode match' {
-            BeforeAll {
-                $testNewInputFile = Copy-ObjectHC $testInputFile
+    Context 'to the Destination.Folder' {
+        BeforeAll {
+            $testNewInputFile = Copy-ObjectHC $testInputFile
 
-                $testNewInputFile.Destination = @(
-                    @{
-                        Folder       = 'TestDrive:\z\Brussels'
-                        CompanyCode  = '577100'
-                        LocationCode = '053'
-                    }
-                    @{
-                        Folder       = 'TestDrive:\z\Leuven'
-                        CompanyCode  = '577400'
-                        LocationCode = '052'
-                    }
-                )
-
-                $testNewInputFile | ConvertTo-Json -Depth 7 |
-                Out-File @testOutParams
-
-                $testFiles = @(
-                    '577100_A_053_2023-10-30-17-49-39.pdf',
-                    '577400_A_052_2023-12-07-13-17-54.pdf'
-                ) | ForEach-Object {
-                    New-Item -Path $testNewInputFile.SourceFolder -Name $_ -ItemType File
+            $testNewInputFile.Destination = @(
+                @{
+                    Folder       = 'TestDrive:\z\Brussels'
+                    CompanyCode  = '577100'
+                    LocationCode = '053'
                 }
+                @{
+                    Folder       = 'TestDrive:\z\Leuven'
+                    CompanyCode  = '577400'
+                    LocationCode = '052'
+                }
+            )
 
-                .$testScript @testParams
+            $testNewInputFile | ConvertTo-Json -Depth 7 |
+            Out-File @testOutParams
+
+            $testFiles = @(
+                '577100_A_053_2023-10-30-17-49-39.pdf',
+                '577400_A_052_2023-12-07-13-17-54.pdf'
+            ) | ForEach-Object {
+                New-Item -Path $testNewInputFile.SourceFolder -Name $_ -ItemType File
             }
+
+            .$testScript @testParams
+        }
+        Context 'when the CompanyCode and LocationCode match' {
             It 'the source folder is empty' {
                 Get-ChildItem -Path $testNewInputFile.SourceFolder |
                 Should -BeNullOrEmpty
@@ -303,6 +303,72 @@ Describe 'move files' {
                         ChildPath = $testFiles[$_].Name
                     }
                     Join-Path @testJoinParams | Should -Exist
+                }
+            }
+        }
+        Context 'export an Excel file' {
+            BeforeAll {
+                $testExportedExcelRows = @(
+                    @{
+                        DateTime          = Get-Date
+                        SourceFolder      = $testInputFile.SourceFolder
+                        DestinationFolder = $testNewInputFile.Destination[0].Folder
+                        FileName          = $testFiles[0].Name
+                        Successful        = $true
+                        CompanyCode       = $testNewInputFile.Destination[0].CompanyCode
+                        LocationCode      = $testNewInputFile.Destination[0].locationCode
+                        Action            = 'created destination folder, file moved'
+                        Error             = ''
+                    }
+                    @{
+                        DateTime          = Get-Date
+                        SourceFolder      = $testInputFile.SourceFolder
+                        DestinationFolder = $testNewInputFile.Destination[1].Folder
+                        FileName          = $testFiles[1].Name
+                        Successful        = $true
+                        CompanyCode       = $testNewInputFile.Destination[1].CompanyCode
+                        LocationCode      = $testNewInputFile.Destination[1].locationCode
+                        Action            = 'created destination folder, file moved'
+                        Error             = ''
+                    }
+                )
+
+                $testExcelLogFile = Get-ChildItem $testParams.LogFolder -File -Recurse -Filter '* - Log.xlsx'
+
+                $actual = Import-Excel -Path $testExcelLogFile.FullName -WorksheetName 'Overview'
+            }
+            It 'to the log folder' {
+                $testExcelLogFile | Should -Not -BeNullOrEmpty
+            }
+            It 'with the correct total rows' {
+                $actual | Should -HaveCount $testExportedExcelRows.Count
+            }
+            It 'with the correct data in the rows' {
+                foreach ($testRow in $testExportedExcelRows) {
+                    $actualRow = $actual | Where-Object {
+                        $_.FileName -eq $testRow.FileName
+                    }
+                    $actualRow.DateTime.ToString('yyyyMMdd') |
+                    Should -Be $testRow.DateTime.ToString('yyyyMMdd')
+                    $actualRow.SourceFolder | Should -Be $testRow.SourceFolder
+                    $actualRow.DestinationFolder | Should -Be $testRow.DestinationFolder
+                    $actualRow.Successful | Should -Be $testRow.Successful
+                    $actualRow.CompanyCode | Should -Be $testRow.CompanyCode
+                    $actualRow.LocationCode | Should -Be $testRow.LocationCode
+                    $actualRow.Action | Should -Be $testRow.Action
+                    $actualRow.Error | Should -Be $testRow.Error
+                }
+            }
+        }
+        Context 'send an e-mail' {
+            It 'to the user' {
+                Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
+                ($To -eq $testInputFile.MailTo) -and
+                ($Bcc -eq $testParams.ScriptAdmin) -and
+                ($Priority -eq 'Normal') -and
+                ($Subject -eq '2\2 files downloaded') -and
+                ($Attachments -like '*- Log.xlsx') -and
+                ($Message -like "*table*SFTP files*2*Files downloaded*2*Errors*0*")
                 }
             }
         }
@@ -361,126 +427,54 @@ Describe 'do not move files when' {
                 Should -Not -BeNullOrEmpty
             }
         }
-    } -Tag test
+    }
 }
-Describe 'when all tests pass' {
+Context 'when Option.OverwriteFile is' {
     BeforeAll {
-        $testData = @(
-
-        )
-
-        $testInputFile | ConvertTo-Json -Depth 5 |
-        Out-File @testOutParams
-
-        $testFiles = $testData.ForEach(
-            {
-                $testNewItemParams = @{
-                    Path     = (
-                        $testInputFile.SourceFolder + '\' + $_.FileName)
-                    ItemType = 'File'
-                }
-                New-Item @testNewItemParams
-            }
-        )
-
-        .$testScript @testParams
-    }
-    Context 'the files are moved from the source to' {
-        It 'a specific destination folder' {
-            $testData.ForEach(
-                { $_.Destination.FilePath | Should -Exist }
-            )
-            $testFiles.ForEach(
-                { $_.FullName | Should -Not -Exist }
-            )
-        }
-    }
-    Context 'export an Excel file' {
-        BeforeAll {
-            $testExportedExcelRows = @(
-                @{
-                    DateTime     = Get-Date
-                    SourceFolder = $testInputFile.SourceFolder
-                    Destination  = $testData[0].Destination.Folder
-                    FileName     = $testData[0].FileName
-                    Successful   = $true
-                    Action       = 'created destination folder, file moved'
-                    Error        = ''
-                }
-                @{
-                    DateTime     = Get-Date
-                    SourceFolder = $testInputFile.SourceFolder
-                    Destination  = $testData[1].Destination.Folder
-                    FileName     = $testData[1].FileName
-                    Successful   = $true
-                    Action       = 'created destination folder, file moved'
-                    Error        = ''
-                }
-            )
-
-            $testExcelLogFile = Get-ChildItem $testParams.LogFolder -File -Recurse -Filter '* - Log.xlsx'
-
-            $actual = Import-Excel -Path $testExcelLogFile.FullName -WorksheetName 'Overview'
-        }
-        It 'to the log folder' {
-            $testExcelLogFile | Should -Not -BeNullOrEmpty
-        }
-        It 'with the correct total rows' {
-            $actual | Should -HaveCount $testExportedExcelRows.Count
-        }
-        It 'with the correct data in the rows' {
-            foreach ($testRow in $testExportedExcelRows) {
-                $actualRow = $actual | Where-Object {
-                    $_.FileName -eq $testRow.FileName
-                }
-                $actualRow.DateTime.ToString('yyyyMMdd') |
-                Should -Be $testRow.DateTime.ToString('yyyyMMdd')
-                $actualRow.SourceFolder | Should -Be $testRow.SourceFolder
-                $actualRow.Destination.ParentFolder | Should -Be $testRow.Destination.ParentFolder
-                $actualRow.Successful | Should -Be $testRow.Successful
-                $actualRow.Action | Should -Be $testRow.Action
-                $actualRow.Error | Should -Be $testRow.Error
-            }
-        }
-    }
-    Context 'send an e-mail' {
-        It 'to the user' {
-            Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
-            ($To -eq $testInputFile.MailTo) -and
-            ($Bcc -eq $testParams.ScriptAdmin) -and
-            ($Priority -eq 'Normal') -and
-            ($Subject -eq '2\2 files downloaded') -and
-            ($Attachments -like '*- Log.xlsx') -and
-            ($Message -like "*table*SFTP files*2*Files downloaded*2*Errors*0*")
-            }
-        }
-    }
-} -Skip
-Context 'Option.OverwriteFile' {
-    It 'if true the destination file is overwritten' {
-        Mock Move-Item
-
-        $testData.ForEach(
-            {
-                $testNewItemParams = @{
-                    Path     = (
-                        $testInputFile.SourceFolder + '\' + $_.FileName)
-                    ItemType = 'File'
-                }
-                New-Item @testNewItemParams
-            }
-        )
-
         $testNewInputFile = Copy-ObjectHC $testInputFile
-        $testNewInputFile.Option.OverwriteFile = $true
 
-        $testNewInputFile | ConvertTo-Json -Depth 5 |
-        Out-File @testOutParams
+        $testNewInputFile.Destination = @(
+            @{
+                Folder       = 'TestDrive:\u'
+                CompanyCode  = '8888'
+                LocationCode = '555'
+            }
+        )
 
-        .$testScript @testParams
+        $testFiles = @(
+            '8888_A_555_a.pdf'
+        ) | ForEach-Object {
+            New-Item -Path $testNewInputFile.SourceFolder -Name $_ -ItemType File
+        }
 
-        Should -Invoke Move-Item -Times $testData.Count -Exactly -ParameterFilter {
-            ($Force)
+        Mock Move-Item
+    }
+    Context 'false' {
+        It 'the destination file is not overwritten' {
+            $testNewInputFile.Option.OverwriteFile = $false
+
+            $testNewInputFile | ConvertTo-Json -Depth 7 |
+            Out-File @testOutParams
+
+            .$testScript @testParams
+
+            Should -Invoke Move-Item -Times 1 -Exactly -ParameterFilter {
+                (-not $Force)
+            }
         }
     }
-} -Skip
+    Context 'true' {
+        It 'the destination file is not overwritten' {
+            $testNewInputFile.Option.OverwriteFile = $true
+
+            $testNewInputFile | ConvertTo-Json -Depth 7 |
+            Out-File @testOutParams
+
+            .$testScript @testParams
+
+            Should -Invoke Move-Item -Times 1 -Exactly -ParameterFilter {
+                ($Force)
+            }
+        }
+    }
+}
