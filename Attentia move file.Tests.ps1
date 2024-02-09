@@ -360,18 +360,16 @@ Describe 'move files' {
                 }
             }
         }
-        Context 'send an e-mail' {
-            It 'to the user' {
-                Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
-                ($To -eq $testInputFile.MailTo) -and
+        It 'send an e-mail' {
+            Should -Invoke Send-MailHC -Times 1 -Exactly -Scope Context -ParameterFilter {
+                ($To -eq $testInputFile.SendMail.To) -and
                 ($Bcc -eq $testParams.ScriptAdmin) -and
                 ($Priority -eq 'Normal') -and
-                ($Subject -eq '2\2 files downloaded') -and
+                ($Subject -eq '2/2 files moved') -and
                 ($Attachments -like '*- Log.xlsx') -and
-                ($Message -like "*table*SFTP files*2*Files downloaded*2*Errors*0*")
-                }
+                ($Message -like "*table*Files in source folder*2*Files moved*2*")
             }
-        }
+        } -Tag test
     }
     Context 'to the NoMatchFolderName when' {
         Context 'there is no match with CompanyCode and LocationCode' {

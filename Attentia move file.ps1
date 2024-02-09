@@ -325,6 +325,7 @@ End {
         ) {
             $createExcelFile = $true
         }
+        #endregion
 
         #region Create Excel worksheet Overview
         if ($createExcelFile) {
@@ -379,10 +380,10 @@ End {
         }
         #endregion
 
-        #region Create Excel worksheet FolderNameMappingTable
-        if ($createExcelFile -and $file.Destination) {
-            $excelParams.WorksheetName = 'FolderNameMappingTable'
-            $excelParams.TableName = 'FolderNameMappingTable'
+        #region Create Excel worksheet MappingTable
+        if ($createExcelFile) {
+            $excelParams.WorksheetName = 'MappingTable'
+            $excelParams.TableName = 'MappingTable'
 
             $M = "Export {0} rows to Excel sheet '{1}'" -f
             $file.Destination.Count,
@@ -452,19 +453,21 @@ End {
                     <th colspan=`"2`">Summary</th>
                 </tr>
                 <tr>
-                    <td>Files downloaded</td>
+                    <td>Files in source folder</td>
+                    <td>$($counter.SourceFiles)</td>
+                </tr>
+                <tr>
+                    <td>Files moved</td>
                     <td>$($counter.FilesMoved)</td>
                 </tr>
-                <tr>
-                    <td>Errors</td>
-                    <td>$($counter.Errors.Move)</td>
-                </tr>
-                <tr>
-                    <th colspan=`"2`">Parameters</th>
-                <tr>
-                    <td>Download folder</td>
-                    <td><a href=`"$($file.Path)`">$($($file.Path))</a></td>
-                </tr>
+                $(
+                    if ($counter.Errors.Move) {
+                    "<tr>
+                        <td>Errors</td>
+                        <td>$($counter.Errors.Move)</td>
+                    </tr>"
+                    }
+                )
             </table>
         "
         #endregion
@@ -474,7 +477,6 @@ End {
             Bcc       = $ScriptAdmin
             Message   = "
                         $systemErrorsHtmlList
-                        <p>Download files from an SFTP server.</p>
                         $summaryHtmlTable"
             LogFolder = $LogParams.LogFolder
             Header    = $ScriptName
