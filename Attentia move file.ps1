@@ -1,5 +1,4 @@
-﻿#Requires -Version 5.1
-#Requires -Modules Toolbox.HTML, Toolbox.EventLog
+﻿#Requires -Version 7
 #Requires -Modules Toolbox.HTML, Toolbox.EventLog, ImportExcel
 
 <#
