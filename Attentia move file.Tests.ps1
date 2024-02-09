@@ -4,11 +4,11 @@
 
 BeforeAll {
     $testInputFile = @{
-        SourceFolder    = (New-Item 'TestDrive:\a' -ItemType Directory).FullName
+        SourceFolder    = (New-Item 'TestDrive:\s' -ItemType Directory).FullName
         NoMatchFolder   = (New-Item 'TestDrive:\n' -ItemType Directory).FullName
         Destination     = @(
             @{
-                FolderName   = 'TestDrive:\b\Brussels'
+                Folder       = 'TestDrive:\d\Brussels'
                 CompanyCode  = '577600'
                 LocationCode = '057'
             }
@@ -104,7 +104,7 @@ Describe 'send an e-mail to the admin when' {
             }
             Context 'Destination' {
                 It '<_> not found' -ForEach @(
-                    'FolderName', 'CompanyCode', 'LocationCode'
+                    'Folder', 'CompanyCode', 'LocationCode'
                 ) {
                     $testNewInputFile = Copy-ObjectHC $testInputFile
                     $testNewInputFile.Destination[0].$_ = $null
@@ -126,12 +126,12 @@ Describe 'send an e-mail to the admin when' {
                     $testNewInputFile = Copy-ObjectHC $testInputFile
                     $testNewInputFile.Destination = @(
                         @{
-                            FolderName   = 'a'
+                            Folder       = 'a'
                             CompanyCode  = '577600'
                             LocationCode = '057'
                         }
                         @{
-                            FolderName   = 'b'
+                            Folder       = 'b'
                             CompanyCode  = '577600'
                             LocationCode = '057'
                         }
@@ -260,11 +260,42 @@ Describe 'send an e-mail to the admin when' {
             ($Message -like "*Source folder '$($testNewInputFile.SourceFolder)' not found*")
         }
     }
-}  -Tag test
-Describe 'move files from the source folder to the destination folder' {
-    It 'to the des' {
+}
+Describe 'move files to the destination folder when' {
+    BeforeAll {
+        $testNewInputFile = Copy-ObjectHC $testInputFile
 
+        $testNewInputFile.Destination = @(
+            @{
+                Folder       = 'TestDrive:\z\Brussels'
+                CompanyCode  = '577100'
+                LocationCode = '053'
+            }
+            @{
+                Folder       = 'TestDrive:\z\Leuven'
+                CompanyCode  = '577400'
+                LocationCode = '052'
+            }
+        )
+
+        $testNewInputFile | ConvertTo-Json -Depth 7 |
+        Out-File @testOutParams
+
+        $testFiles = @(
+            '577100_A_053_2023-10-30-17-49-39.pdf',
+            '577400_A_052_2023-12-07-13-17-54.pdf'
+        ) | ForEach-Object {
+            New-Item -Path $testNewInputFile.SourceFolder -Name $_ -ItemType File
+        }
+
+        .$testScript @testParams
     }
+    Context 'the CompanyCode and LocationCode match' {
+        It 'the source folder is empty' {
+            Get-ChildItem -Path $testNewInputFile.SourceFolder |
+            Should -BeNullOrEmpty
+        }
+    } -Tag test
 }
 Describe 'when all tests pass' {
     BeforeAll {

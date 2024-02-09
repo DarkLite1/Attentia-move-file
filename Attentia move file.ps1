@@ -89,17 +89,9 @@ Begin {
                 { throw "Property '$_' not found" }
             )
 
-            @(
-                'FolderName', 'CompanyCode', 'LocationCode'
-            ).where(
-                { -not $file.Destination.$_ }
-            ).foreach(
-                { throw "Property 'Destination.$_' not found" }
-            )
-
             #region Test Destination mapping table
             foreach ($f in $file.Destination) {
-                @('FolderName', 'CompanyCode', 'LocationCode') |
+                @('Folder', 'CompanyCode', 'LocationCode') |
                 Where-Object { -not $f.$_ } | ForEach-Object {
                     throw "Property 'Destination.$_' not found."
                 }
@@ -152,13 +144,9 @@ Begin {
         }
         #endregion
 
-        #region Test folders
+        #region Test source folder exits
         if (-not (Test-Path -Path $file.SourceFolder -PathType 'Container')) {
             throw "Source folder '$($file.SourceFolder)' not found."
-        }
-
-        if (-not (Test-Path -Path $file.Destination.ParentFolder -PathType 'Container')) {
-            throw "Destination folder '$($file.Destination.ParentFolder)' not found."
         }
         #endregion
     }
@@ -179,78 +167,75 @@ Process {
             Write-EventLog @EventEndParams; Exit
         }
 
-        $destinationFolders = @{}
-
         $results = foreach ($sourceFile in $sourceFiles) {
             try {
                 $result = [PSCustomObject]@{
-                    SourceFile            = $sourceFile
-                    DestinationFolderName = $null
-                    DateTime              = Get-Date
-                    Moved                 = $false
-                    Action                = @()
-                    Error                 = $null
+                    SourceFile        = $sourceFile
+                    DestinationFolder = $null
+                    CompanyCode       = $null
+                    LocationCode      = $null
+                    DateTime          = Get-Date
+                    Moved             = $false
+                    Action            = @()
+                    Error             = $null
                 }
 
-                #region Get destination folder name from file name
+                #region Get companyCode and locationCode from file name
                 $tmpStrings = $sourceFile.Name.Split('_')
 
-                if (-not ($companyCode = $tmpStrings[1])) {
+                if (-not ($result.CompanyCode = $tmpStrings[0])) {
                     throw 'No company code found in the file name'
                 }
 
-                if (-not ($locationCode = $tmpStrings[3])) {
+                if (-not ($result.LocationCode = $tmpStrings[2])) {
                     throw 'No location code found in the file name'
                 }
+                #endregion
 
-                $result.DestinationFolderName =
+                #region Get destination folder from mapping table
+                $result.DestinationFolder =
                 ($file.Destination.Where(
                     {
-                        ($_.LocationCode -eq $locationCode) -and
-                        ($_.CompanyCode -eq $companyCode)
+                        ($_.LocationCode -eq $result.LocationCode) -and
+                        ($_.CompanyCode -eq $result.CompanyCode)
                     }, 'First'
                 )
-                ).FolderName
+                ).Folder
 
-                if (-not $result.DestinationFolderName) {
-                    $result.DestinationFolderName = $file.Destination.ChildFolder.NoMatchFolderName
+                if (-not $result.DestinationFolder) {
+                    if (-not $file.NoMatchFolderName) {
+                        $result.Action += "file not moved, no matching folder found in Destination and MoMatchFolderName is blank"
+
+                        $M = "File '$($result.SourceFile)' not moved, no matching folder found in Destination and MoMatchFolderName is blank"
+                        Write-Warning $M; Write-EventLog $EventWarnParams
+                        Continue
+                    }
+                    $result.DestinationFolder = $file.NoMatchFolderName
                 }
                 #endregion
 
                 #region Create destination folder
-                if (-not $destinationFolders.ContainsKey(
-                        $result.DestinationFolderName
-                    )
-                ) {
+                $testPathParams = @{
+                    Path        = $result.DestinationFolder
+                    PathType    = 'Container'
+                    ErrorAction = 'Stop'
+                }
+
+                if (-not (Test-Path @testPathParams)) {
                     try {
-                        $joinParams = @{
-                            Path      = $file.Destination.ParentFolder
-                            ChildPath = $result.DestinationFolderName
-                        }
-                        $testPathParams = @{
-                            Path        = Join-Path @joinParams
-                            PathType    = 'Container'
+                        $M = "Create destination folder '{0}'" -f
+                        $testPathParams.Path
+                        Write-Verbose $M
+                        Write-EventLog @EventVerboseParams -Message $M
+
+                        $newItemParams = @{
+                            Path        = $testPathParams.Path
+                            ItemType    = 'Directory'
                             ErrorAction = 'Stop'
                         }
+                        $null = New-Item @newItemParams
 
-                        if (-not (Test-Path @testPathParams)) {
-                            $M = "Create destination folder '{0}'" -f
-                            $testPathParams.Path
-                            Write-Verbose $M
-                            Write-EventLog @EventVerboseParams -Message $M
-
-                            $newItemParams = @{
-                                Path        = $testPathParams.Path
-                                ItemType    = 'Directory'
-                                ErrorAction = 'Stop'
-                            }
-                            $null = New-Item @newItemParams
-
-                            $result.Action += 'created destination folder'
-                        }
-
-                        $destinationFolders[$result.DestinationFolderName] =
-                        $testPathParams.Path
+                        $result.Action += 'created destination folder'
                     }
                     catch {
                         $M = "Failed creating destination folder '{0}': $_" -f
@@ -264,7 +249,7 @@ Process {
                 #region Move file
                 $moveParams = @{
                     LiteralPath = $result.SourceFile.FullName
-                    Destination = $destinationFolders[$result.DestinationFolderName]
+                    Destination = $result.DestinationFolder
                     ErrorAction = 'Stop'
                 }
 
@@ -356,7 +341,7 @@ End {
             @{
                 Name       = 'DestinationFolder'
                 Expression = {
-                    $file.Destination.ParentFolder + '\' + $_.DestinationFolderName
+                    $file.Destination.ParentFolder + '\' + $_.DestinationFolder
                 }
             },
             @{
@@ -394,7 +379,7 @@ End {
             $excelParams.WorksheetName
             Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
 
-            $file.Destination | Sort-Object 'FolderName' |
+            $file.Destination | Sort-Object 'Folder' |
             Export-Excel @excelParams
 
             $mailParams.Attachments = $excelParams.Path
