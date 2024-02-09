@@ -4,25 +4,15 @@
 
 BeforeAll {
     $testInputFile = @{
-        SourceFolder    = (New-Item 'TestDrive:/a' -ItemType Directory).FullName
-        Destination     = @{
-            ParentFolder = (New-Item 'TestDrive:/b' -ItemType Directory).FullName
-            ChildFolder  = @{
-                NoMatchFolderName = 'Other'
-                MappingTable      = @(
-                    @{
-                        FolderName   = 'Brussels'
-                        CompanyCode  = '577600'
-                        LocationCode = '057'
-                    }
-                    @{
-                        FolderName   = 'London'
-                        CompanyCode  = '577601'
-                        LocationCode = '057'
-                    }
-                )
+        SourceFolder    = (New-Item 'TestDrive:\a' -ItemType Directory).FullName
+        NoMatchFolder   = (New-Item 'TestDrive:\n' -ItemType Directory).FullName
+        Destination     = @(
+            @{
+                FolderName   = 'TestDrive:\b\Brussels'
+                CompanyCode  = '577600'
+                LocationCode = '057'
             }
-        }
+        )
         Option          = @{
             OverwriteFile = $false
         }
@@ -35,25 +25,8 @@ BeforeAll {
         }
     }
 
-    $testData = @(
-        [PSCustomObject]@{
-            FileName    = 'BAND_577600_A_057_202306301556.pdf'
-            Destination = @{
-                Folder   = Join-Path $testInputFile.Destination.ParentFolder 'Brussels'
-                FilePath = Join-Path $testInputFile.Destination.ParentFolder 'Brussels\BAND_577600_A_057_202306301556.pdf'
-            }
-        }
-        [PSCustomObject]@{
-            FileName    = 'BAND_C2_A_L2_20230.pdf'
-            Destination = @{
-                Folder   = Join-Path $testInputFile.Destination.ParentFolder 'C2 L2'
-                FilePath = Join-Path $testInputFile.Destination.ParentFolder 'C2 L2\BAND_C2_A_L2_20230.pdf'
-            }
-        }
-    )
-
     $testOutParams = @{
-        FilePath = (New-Item "TestDrive:/Test.json" -ItemType File).FullName
+        FilePath = (New-Item "TestDrive:\Test.json" -ItemType File).FullName
         Encoding = 'utf8'
     }
 
@@ -61,7 +34,7 @@ BeforeAll {
     $testParams = @{
         ScriptName  = 'Test (Brecht)'
         ImportFile  = $testOutParams.FilePath
-        LogFolder   = New-Item 'TestDrive:/log' -ItemType Directory
+        LogFolder   = New-Item 'TestDrive:\log' -ItemType Directory
         ScriptAdmin = 'admin@conotoso.com'
     }
 
@@ -84,7 +57,7 @@ Describe 'send an e-mail to the admin when' {
     }
     It 'the log folder cannot be created' {
         $testNewParams = $testParams.clone()
-        $testNewParams.LogFolder = 'xxx:://notExistingLocation'
+        $testNewParams.LogFolder = 'xxx::\\notExistingLocation'
 
         .$testScript @testNewParams
 
@@ -109,8 +82,9 @@ Describe 'send an e-mail to the admin when' {
         }
         Context 'property' {
             It '<_> not found' -ForEach @(
-                'SourceFolder', 'Destination', 'Option'
-                'ExportExcelFile', 'SendMail'
+                'SourceFolder', 'Destination',
+                'ExportExcelFile', 'SendMail',
+                'Option'
             ) {
                 $testNewInputFile = Copy-ObjectHC $testInputFile
                 $testNewInputFile.$_ = $null
@@ -128,50 +102,12 @@ Describe 'send an e-mail to the admin when' {
                     $EntryType -eq 'Error'
                 }
             }
-            It 'Destination.<_> not found' -ForEach @(
-                'ParentFolder', 'ChildFolder'
-            ) {
-                $testNewInputFile = Copy-ObjectHC $testInputFile
-                $testNewInputFile.Destination.$_ = $null
-
-                $testNewInputFile | ConvertTo-Json -Depth 7 |
-                Out-File @testOutParams
-
-                .$testScript @testParams
-
-                Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                        (&$mailAdminParams) -and
-                        ($Message -like "*$ImportFile*Property 'Destination.$_' not found*")
-                }
-                Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
-                    $EntryType -eq 'Error'
-                }
-            }
-            It 'Destination.ChildFolder.<_> not found' -ForEach @(
-                'NoMatchFolderName', 'MappingTable'
-            ) {
-                $testNewInputFile = Copy-ObjectHC $testInputFile
-                $testNewInputFile.Destination.ChildFolder.$_ = $null
-
-                $testNewInputFile | ConvertTo-Json -Depth 7 |
-                Out-File @testOutParams
-
-                .$testScript @testParams
-
-                Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                        (&$mailAdminParams) -and
-                        ($Message -like "*$ImportFile*Property 'Destination.ChildFolder.$_' not found*")
-                }
-                Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
-                    $EntryType -eq 'Error'
-                }
-            }
-            Context 'Destination.ChildFolder.MappingTable' {
+            Context 'Destination' {
                 It '<_> not found' -ForEach @(
                     'FolderName', 'CompanyCode', 'LocationCode'
                 ) {
                     $testNewInputFile = Copy-ObjectHC $testInputFile
-                    $testNewInputFile.Destination.ChildFolder.MappingTable[0].$_ = $null
+                    $testNewInputFile.Destination[0].$_ = $null
 
                     $testNewInputFile | ConvertTo-Json -Depth 5 |
                     Out-File @testOutParams
@@ -180,7 +116,7 @@ Describe 'send an e-mail to the admin when' {
 
                     Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
                         (&$mailAdminParams) -and
-                        ($Message -like "*$ImportFile*Property 'Destination.ChildFolder.MappingTable.$_' not found*")
+                        ($Message -like "*$ImportFile*Property 'Destination.$_' not found*")
                     }
                     Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
                         $EntryType -eq 'Error'
@@ -188,14 +124,14 @@ Describe 'send an e-mail to the admin when' {
                 }
                 It 'contains duplicates' {
                     $testNewInputFile = Copy-ObjectHC $testInputFile
-                    $testNewInputFile.Destination.ChildFolder.MappingTable = @(
+                    $testNewInputFile.Destination = @(
                         @{
-                            FolderName   = 'Brussels'
+                            FolderName   = 'a'
                             CompanyCode  = '577600'
                             LocationCode = '057'
                         }
                         @{
-                            FolderName   = 'Genk'
+                            FolderName   = 'b'
                             CompanyCode  = '577600'
                             LocationCode = '057'
                         }
@@ -208,7 +144,7 @@ Describe 'send an e-mail to the admin when' {
 
                     Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
                         (&$mailAdminParams) -and
-                        ($Message -like "*$ImportFile*Property 'Destination.ChildFolder.MappingTable' contains a duplicate combination of CompanyCode and LocationCode*")
+                        ($Message -like "*$ImportFile*Property 'Destination' contains a duplicate combination of CompanyCode and LocationCode*")
                     }
                     Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter {
                         $EntryType -eq 'Error'
@@ -312,7 +248,7 @@ Describe 'send an e-mail to the admin when' {
     }
     It 'the source folder does not exist' {
         $testNewInputFile = Copy-ObjectHC $testInputFile
-        $testNewInputFile.SourceFolder = 'c:/notExistingFolder'
+        $testNewInputFile.SourceFolder = 'c:\notExistingFolder'
 
         $testNewInputFile | ConvertTo-Json -Depth 5 |
         Out-File @testOutParams
@@ -324,23 +260,18 @@ Describe 'send an e-mail to the admin when' {
             ($Message -like "*Source folder '$($testNewInputFile.SourceFolder)' not found*")
         }
     }
-    It 'the destination folder does not exist' {
-        $testNewInputFile = Copy-ObjectHC $testInputFile
-        $testNewInputFile.Destination.ParentFolder = 'c:/notExistingFolder'
+}  -Tag test
+Describe 'move files from the source folder to the destination folder' {
+    It 'to the des' {
 
-        $testNewInputFile | ConvertTo-Json -Depth 5 |
-        Out-File @testOutParams
-
-        .$testScript @testParams
-
-        Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-            (&$mailAdminParams) -and
-            ($Message -like "*Destination folder '$($testNewInputFile.Destination.ParentFolder)' not found*")
-        }
     }
 }
 Describe 'when all tests pass' {
     BeforeAll {
+        $testData = @(
+
+        )
+
         $testInputFile | ConvertTo-Json -Depth 5 |
         Out-File @testOutParams
 
@@ -414,14 +345,14 @@ Describe 'when all tests pass' {
                 $actualRow.Error | Should -Be $testRow.Error
             }
         }
-    } #-Tag test
+    }
     Context 'send an e-mail' {
         It 'to the user' {
             Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($To -eq $testInputFile.MailTo) -and
             ($Bcc -eq $testParams.ScriptAdmin) -and
             ($Priority -eq 'Normal') -and
-            ($Subject -eq '2/2 files downloaded') -and
+            ($Subject -eq '2\2 files downloaded') -and
             ($Attachments -like '*- Log.xlsx') -and
             ($Message -like "*table*SFTP files*2*Files downloaded*2*Errors*0*")
             }

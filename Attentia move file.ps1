@@ -7,9 +7,9 @@
     Move files to a specific folder, based on the file name and a mapping table.
 
 .DESCRIPTION
-    Move files from the source folder to the destination folder. Subfolders
-    will be created in the destination folder based on the file name and a
-    mapping table.
+    Move files from the source folder to the destination folder. The destination
+    folder is derived from the matching the file name with the CompanyCode and
+    LocationCode in the Destination parameter.
 
 .PARAMETER ImportFile
     A .JSON file that contains all the parameters used by the script.
@@ -19,18 +19,19 @@
 
 .PARAMETER OverwriteFile
     Overwrite a file when a file with the same name already exists in the
-    destination subfolder.
+    destination folder.
 
 .PARAMETER SourceFolder
-    The source folder where the original files are stored.
+    Folder where the original files are stored.
 
-.PARAMETER Destination.ParentFolder
-    The parent folder where the subfolders are created in which the moved
-    files will be saved.
+.PARAMETER NoMatchFolder
+    Files that cannot be matched with a name in the Destination parameter will
+    be moved to this folder. However, when NoMatchFolder is blank the
+    non-matched files will not be moved and will remain in the source folder.
 
-.PARAMETER Destination.ChildFolder.MappingTable
-    When a file name has a matching company code and location code, a subfolder
-    is created in the destination folder where the file will be stored.
+.PARAMETER Destination
+    When a file name has a matching company code and location code it is moved
+    to the correct destination folder.
 #>
 
 [CmdLetBinding()]
@@ -79,8 +80,9 @@ Begin {
         #region Test .json file properties
         try {
             @(
-                'SourceFolder', 'Destination', 'Option'
-                'ExportExcelFile', 'SendMail'
+                'SourceFolder', 'Destination',
+                'ExportExcelFile', 'SendMail',
+                'Option'
             ).where(
                 { -not $file.$_ }
             ).foreach(
@@ -88,29 +90,21 @@ Begin {
             )
 
             @(
-                'ParentFolder', 'ChildFolder'
+                'FolderName', 'CompanyCode', 'LocationCode'
             ).where(
                 { -not $file.Destination.$_ }
             ).foreach(
                 { throw "Property 'Destination.$_' not found" }
             )
 
-            @(
-                'NoMatchFolderName', 'MappingTable'
-            ).where(
-                { -not $file.Destination.ChildFolder.$_ }
-            ).foreach(
-                { throw "Property 'Destination.ChildFolder.$_' not found" }
-            )
-
-            #region Test Destination.ChildFolder.MappingTable
-            foreach ($f in $file.Destination.ChildFolder.MappingTable) {
+            #region Test Destination mapping table
+            foreach ($f in $file.Destination) {
                 @('FolderName', 'CompanyCode', 'LocationCode') |
                 Where-Object { -not $f.$_ } | ForEach-Object {
-                    throw "Property 'Destination.ChildFolder.MappingTable.$_' not found."
+                    throw "Property 'Destination.$_' not found."
                 }
             }
-            $duplicateChildFolderNameMappingTable = $file.Destination.ChildFolder.MappingTable |
+            $duplicateChildFolderNameMappingTable = $file.Destination |
             Group-Object -Property {
                 '{0} - {1}' -f $_.CompanyCode, $_.LocationCode
             } | Where-Object {
@@ -118,7 +112,7 @@ Begin {
             }
 
             if ($duplicateChildFolderNameMappingTable) {
-                throw "Property 'Destination.ChildFolder.MappingTable' contains a duplicate combination of CompanyCode and LocationCode: {0}" -f ($duplicateChildFolderNameMappingTable.Name -join ', ')
+                throw "Property 'Destination' contains a duplicate combination of CompanyCode and LocationCode: {0}" -f ($duplicateChildFolderNameMappingTable.Name -join ', ')
             }
             #endregion
 
@@ -210,7 +204,7 @@ Process {
                 }
 
                 $result.DestinationFolderName =
-                ($file.Destination.ChildFolder.MappingTable.Where(
+                ($file.Destination.Where(
                     {
                         ($_.LocationCode -eq $locationCode) -and
                         ($_.CompanyCode -eq $companyCode)
@@ -219,8 +213,7 @@ Process {
                 ).FolderName
 
                 if (-not $result.DestinationFolderName) {
-                    $result.DestinationFolderName = '{0} {1}' -f
-                    $companyCode, $locationCode
+                    $result.DestinationFolderName = $file.Destination.ChildFolder.NoMatchFolderName
                 }
                 #endregion
 
@@ -392,16 +385,16 @@ End {
         #endregion
 
         #region Create Excel worksheet FolderNameMappingTable
-        if ($createExcelFile -and $file.Destination.ChildFolder.MappingTable) {
+        if ($createExcelFile -and $file.Destination) {
             $excelParams.WorksheetName = 'FolderNameMappingTable'
             $excelParams.TableName = 'FolderNameMappingTable'
 
             $M = "Export {0} rows to Excel sheet '{1}'" -f
-            $file.Destination.ChildFolder.MappingTable.Count,
+            $file.Destination.Count,
             $excelParams.WorksheetName
             Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
 
-            $file.Destination.ChildFolder.MappingTable | Sort-Object 'FolderName' |
+            $file.Destination | Sort-Object 'FolderName' |
             Export-Excel @excelParams
 
             $mailParams.Attachments = $excelParams.Path

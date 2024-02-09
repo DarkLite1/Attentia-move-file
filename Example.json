@@ -1,18 +1,13 @@
 {
   "SourceFolder": "C:\\SFTP Download folder",
-  "Destination": {
-    "ParentFolder": "C:\\Reports",
-    "ChildFolder": {
-      "NoMatchFolderName": "Other",
-      "MappingTable": [
-        {
-          "FolderName": "Blue collars",
-          "CompanyCode": "987789",
-          "LocationCode": "123"
-        }
-      ]
+  "NoMatchFolder": "C:\\Reports\\Other",
+  "Destination": [
+    {
+      "Folder": "C:\\Reports\\Blue collars",
+      "CompanyCode": "987789",
+      "LocationCode": "123"
     }
-  },
+  ],
   "Option": {
     "OverwriteFile": false
   },
