@@ -24,11 +24,11 @@
 .PARAMETER SourceFolder
     The source folder where the original files are stored.
 
-.PARAMETER DestinationFolder
+.PARAMETER Destination.ParentFolder
     The parent folder where the subfolders are created in which the moved
     files will be saved.
 
-.PARAMETER ChildFolderNameMappingTable
+.PARAMETER Destination.ChildFolder.MappingTable
     When a file name has a matching company code and location code, a subfolder
     is created in the destination folder where the file will be stored.
 #>
@@ -79,14 +79,48 @@ Begin {
         #region Test .json file properties
         try {
             @(
-                'SourceFolder', 'DestinationFolder', 'ChildFolderNameMappingTable',
-                'ExportExcelFile', 'SendMail',
-                'Option'
+                'SourceFolder', 'Destination', 'Option'
+                'ExportExcelFile', 'SendMail'
             ).where(
                 { -not $file.$_ }
             ).foreach(
                 { throw "Property '$_' not found" }
             )
+
+            @(
+                'ParentFolder', 'ChildFolder'
+            ).where(
+                { -not $file.Destination.$_ }
+            ).foreach(
+                { throw "Property 'Destination.$_' not found" }
+            )
+
+            @(
+                'NoMatchFolderName', 'MappingTable'
+            ).where(
+                { -not $file.Destination.ChildFolder.$_ }
+            ).foreach(
+                { throw "Property 'Destination.ChildFolder.$_' not found" }
+            )
+
+            #region Test Destination.ChildFolder.MappingTable
+            foreach ($f in $file.Destination.ChildFolder.MappingTable) {
+                @('FolderName', 'CompanyCode', 'LocationCode') |
+                Where-Object { -not $f.$_ } | ForEach-Object {
+                    throw "Property 'Destination.ChildFolder.MappingTable.$_' not found."
+                }
+            }
+            $duplicateChildFolderNameMappingTable = $file.Destination.ChildFolder.MappingTable |
+            Group-Object -Property {
+                '{0} - {1}' -f $_.CompanyCode, $_.LocationCode
+            } | Where-Object {
+                $_.Count -ge 2
+            }
+
+            if ($duplicateChildFolderNameMappingTable) {
+                throw "Property 'Destination.ChildFolder.MappingTable' contains a duplicate combination of CompanyCode and LocationCode: {0}" -f ($duplicateChildFolderNameMappingTable.Name -join ', ')
+            }
+            #endregion
 
             #region Test SendMail and ExportExcelFile
             @('To', 'When').Where(
@@ -110,25 +144,6 @@ Begin {
             }
             #endregion
 
-            #region Test ChildFolderNameMappingTable
-            foreach ($f in $file.ChildFolderNameMappingTable) {
-                @('FolderName', 'CompanyCode', 'LocationCode') |
-                Where-Object { -not $f.$_ } | ForEach-Object {
-                    throw "Property '$_' with value '' in the 'ChildFolderNameMappingTable' is not valid."
-                }
-            }
-            $duplicateChildFolderNameMappingTable = $file.ChildFolderNameMappingTable |
-            Group-Object -Property {
-                '{0} - {1}' -f $_.CompanyCode, $_.LocationCode
-            } | Where-Object {
-                $_.Count -ge 2
-            }
-
-            if ($duplicateChildFolderNameMappingTable) {
-                throw "Property 'ChildFolderNameMappingTable' contains a duplicate combination of CompanyCode and LocationCode: {0}" -f ($duplicateChildFolderNameMappingTable.Name -join ', ')
-            }
-            #endregion
-
             #region Test boolean
             try {
                 [Boolean]::Parse($file.Option.OverwriteFile)
@@ -148,8 +163,8 @@ Begin {
             throw "Source folder '$($file.SourceFolder)' not found."
         }
 
-        if (-not (Test-Path -Path $file.DestinationFolder -PathType 'Container')) {
-            throw "Destination folder '$($file.DestinationFolder)' not found."
+        if (-not (Test-Path -Path $file.Destination.ParentFolder -PathType 'Container')) {
+            throw "Destination folder '$($file.Destination.ParentFolder)' not found."
         }
         #endregion
     }
@@ -195,7 +210,7 @@ Process {
                 }
 
                 $result.DestinationFolderName =
-                ($file.ChildFolderNameMappingTable.Where(
+                ($file.Destination.ChildFolder.MappingTable.Where(
                     {
                         ($_.LocationCode -eq $locationCode) -and
                         ($_.CompanyCode -eq $companyCode)
@@ -216,7 +231,7 @@ Process {
                 ) {
                     try {
                         $joinParams = @{
-                            Path      = $file.DestinationFolder
+                            Path      = $file.Destination.ParentFolder
                             ChildPath = $result.DestinationFolderName
                         }
                         $testPathParams = @{
@@ -301,8 +316,37 @@ End {
             FreezeTopRow = $true
         }
 
+        #region Counters
+        $counter = @{
+            SourceFiles  = $results.Count
+            FilesMoved   = $results.Where({ $_.Moved }).Count
+            MoveErrors   = $results.Where({ $_.Error }).Count
+            SystemErrors = (
+                $Error.Exception.Message | Measure-Object
+            ).Count
+        }
+
+        $counter.TotalErrors = $counter.MoveErrors + $counter.SystemErrors
+        #endregion
+
         #region Create Excel worksheet Overview
-        if ($results) {
+        $createExcelFile = $false
+
+        if (
+            (
+                ($task.ExportExcelFile.When -eq 'OnlyOnError') -and
+                ($counter.TotalErrors)
+            ) -or
+            (
+                ($task.ExportExcelFile.When -eq 'OnlyOnErrorOrAction') -and
+                (($counter.TotalErrors) -or ($counter.Total.Actions))
+            )
+        ) {
+            $createExcelFile = $true
+        }
+
+        #region Create Excel worksheet Overview
+        if ($createExcelFile) {
             $excelParams.WorksheetName = 'Overview'
             $excelParams.TableName = 'Overview'
 
@@ -319,7 +363,7 @@ End {
             @{
                 Name       = 'DestinationFolder'
                 Expression = {
-                    $file.DestinationFolder + '\' + $_.DestinationFolderName
+                    $file.Destination.ParentFolder + '\' + $_.DestinationFolderName
                 }
             },
             @{
@@ -348,16 +392,16 @@ End {
         #endregion
 
         #region Create Excel worksheet FolderNameMappingTable
-        if ($file.ChildFolderNameMappingTable) {
+        if ($createExcelFile -and $file.Destination.ChildFolder.MappingTable) {
             $excelParams.WorksheetName = 'FolderNameMappingTable'
             $excelParams.TableName = 'FolderNameMappingTable'
 
             $M = "Export {0} rows to Excel sheet '{1}'" -f
-            $file.ChildFolderNameMappingTable.Count,
+            $file.Destination.ChildFolder.MappingTable.Count,
             $excelParams.WorksheetName
             Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
 
-            $file.ChildFolderNameMappingTable | Sort-Object 'FolderName' |
+            $file.Destination.ChildFolder.MappingTable | Sort-Object 'FolderName' |
             Export-Excel @excelParams
 
             $mailParams.Attachments = $excelParams.Path
@@ -366,14 +410,23 @@ End {
 
         #region Send mail to user
 
-        #region Error counters
-        $counter = @{
-            SourceFiles  = $results.Count
-            FilesMoved   = $results.Where({ $_.Moved }).Count
-            MoveErrors   = $results.Where({ $_.Error }).Count
-            SystemErrors = (
-                $Error.Exception.Message | Measure-Object
-            ).Count
+        #region Check to send mail to user
+        $sendMailToUser = $false
+
+        if (
+            (
+                ($file.SendMail.When -eq 'Always')
+            ) -or
+            (
+                ($file.SendMail.When -eq 'OnlyOnError') -and
+                ($counter.TotalErrors)
+            ) -or
+            (
+                ($file.SendMail.When -eq 'OnlyOnErrorOrAction') -and
+                (($counter.Total.Actions) -or ($counter.TotalErrors))
+            )
+        ) {
+            $sendMailToUser = $true
         }
         #endregion
 
@@ -385,12 +438,10 @@ End {
             if ($counter.SourceFiles -ne 1) { 's' }
         )
 
-        if (
-            $totalErrorCount = $counter.MoveErrors + $counter.SystemErrors
-        ) {
+        if ($counter.TotalErrors) {
             $mailParams.Priority = 'High'
-            $mailParams.Subject += ", $totalErrorCount error{0}" -f $(
-                if ($totalErrorCount -ne 1) { 's' }
+            $mailParams.Subject += ", {0} error{1}" -f $counter.TotalErrors, $(
+                if ($counter.TotalErrors -ne 1) { 's' }
             )
         }
         #endregion
@@ -413,16 +464,8 @@ End {
                     <th colspan=`"2`">Summary</th>
                 </tr>
                 <tr>
-                    <td>SFTP files</td>
-                    <td>$($counter.SourceFiles)</td>
-                </tr>
-                <tr>
                     <td>Files downloaded</td>
                     <td>$($counter.FilesMoved)</td>
-                </tr>
-                <tr>
-                    <td>Files removed on SFTP server</td>
-                    <td>$($counter.RemovedOnSftpServer)</td>
                 </tr>
                 <tr>
                     <td>Errors</td>
@@ -430,26 +473,9 @@ End {
                 </tr>
                 <tr>
                     <th colspan=`"2`">Parameters</th>
-                </tr>
-                <tr>
-                    <td>SFTP hostname</td>
-                    <td>$($Sftp.ComputerName)</td>
-                </tr>
-                <tr>
-                    <td>SFTP path</td>
-                    <td>$($Sftp.Path)</td>
-                </tr>
                 <tr>
                     <td>Download folder</td>
                     <td><a href=`"$($file.Path)`">$($($file.Path))</a></td>
-                </tr>
-                <tr>
-                    <td>Overwrite downloaded files</td>
-                    <td>$($file.OverwriteExistingFile)</td>
-                </tr>
-                <tr>
-                    <td>Remove files from SFTP server</td>
-                    <td>$($Sftp.RemoveFileAfterDownload)</td>
                 </tr>
             </table>
         "
