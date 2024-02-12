@@ -131,7 +131,7 @@ Begin {
 
             #region Test boolean
             try {
-                [Boolean]::Parse($file.Option.OverwriteFile)
+                $null = [Boolean]::Parse($file.Option.OverwriteFile)
             }
             catch {
                 throw "Property 'Option.OverwriteFile' is not a boolean value"
