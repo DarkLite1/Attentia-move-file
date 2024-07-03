@@ -214,7 +214,8 @@ Process {
                         $result.Error += "File not moved, $errorMessage"
 
                         $M = "File '$($result.SourceFile)' not moved,  $errorMessage"
-                        Write-Warning $M; Write-EventLog @EventWarnParams
+                        Write-Warning $M
+                        Write-EventLog @EventWarnParams -Message $M
                         Continue
                     }
                     $result.DestinationFolder = $file.NoMatchFolderName
