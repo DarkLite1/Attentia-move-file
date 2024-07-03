@@ -168,6 +168,8 @@ Process {
 
         $results = foreach ($sourceFile in $sourceFiles) {
             try {
+                Write-Verbose "File '$sourceFile'"
+
                 $result = [PSCustomObject]@{
                     SourceFile        = $sourceFile
                     DestinationFolder = $null
@@ -186,9 +188,13 @@ Process {
                     throw 'No company code found in the file name'
                 }
 
+                Write-Verbose "CompanyCode '$($result.CompanyCode)'"
+
                 if (-not ($result.LocationCode = $tmpStrings[2])) {
                     throw 'No location code found in the file name'
                 }
+
+                Write-Verbose "LocationCode '$($result.LocationCode)'"
                 #endregion
 
                 #region Get destination folder from mapping table
@@ -205,8 +211,8 @@ Process {
                     if (-not $file.NoMatchFolderName) {
                         $result.Error += "file not moved, no matching folder found in Destination and MoMatchFolderName is blank"
 
-                        $M = "File '$($result.SourceFile)' not moved, no match with Destination.LocationCode and Destination.CompanyCode, and MoMatchFolderName is blank"
-                        Write-Warning $M; Write-EventLog $EventWarnParams
+                        $M = "File '$($result.SourceFile)' not moved, no match with LocationCode '$($result.LocationCode)' and CompanyCode '$($result.CompanyCode)', and MoMatchFolderName is blank"
+                        Write-Warning $M; Write-EventLog @EventWarnParams
                         Continue
                     }
                     $result.DestinationFolder = $file.NoMatchFolderName
