@@ -337,8 +337,7 @@ End {
 
         #region Create Excel worksheet Overview
         if ($createExcelFile) {
-            $excelParams.WorksheetName = 'Overview'
-            $excelParams.TableName = 'Overview'
+            $excelParams.WorksheetName = $excelParams.TableName = 'Overview'
 
             $M = "Export {0} rows to Excel sheet '{1}'" -f
             $results.Count, $excelParams.WorksheetName
@@ -390,8 +389,7 @@ End {
 
         #region Create Excel worksheet MappingTable
         if ($createExcelFile) {
-            $excelParams.WorksheetName = 'MappingTable'
-            $excelParams.TableName = 'MappingTable'
+            $excelParams.WorksheetName = $excelParams.TableName = 'MappingTable'
 
             $M = "Export {0} rows to Excel sheet '{1}'" -f
             $file.Destination.Count,
