@@ -418,7 +418,7 @@ End {
             ) -or
             (
                 ($file.SendMail.When -eq 'OnlyOnErrorOrAction') -and
-                (($counter.Total.Actions) -or ($counter.TotalErrors))
+                (($counter.Actions) -or ($counter.TotalErrors))
             )
         ) {
             $sendMailToUser = $true
