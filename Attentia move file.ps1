@@ -403,8 +403,6 @@ End {
         }
         #endregion
 
-        #region Send mail to user
-
         #region Check to send mail to user
         $sendMailToUser = $false
 
@@ -478,6 +476,7 @@ End {
         "
         #endregion
 
+        #region Send mail
         $mailParams += @{
             To             = $file.SendMail.To
             Bcc            = $ScriptAdmin
