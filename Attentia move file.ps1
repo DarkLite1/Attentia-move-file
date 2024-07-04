@@ -481,14 +481,16 @@ End {
         #endregion
 
         $mailParams += @{
-            To        = $file.SendMail.To
-            Bcc       = $ScriptAdmin
-            Message   = "
+            To             = $file.SendMail.To
+            Bcc            = $ScriptAdmin
+            Message        = "
                         $systemErrorsHtmlList
                         $summaryHtmlTable"
-            LogFolder = $LogParams.LogFolder
-            Header    = $ScriptName
-            Save      = $logFile + ' - Mail.html'
+            LogFolder      = $LogParams.LogFolder
+            Header         = $ScriptName
+            EventLogSource = $ScriptName
+            Save           = $LogFile + ' - Mail.html'
+            ErrorAction    = 'Stop'
         }
 
         if ($mailParams.Attachments) {
