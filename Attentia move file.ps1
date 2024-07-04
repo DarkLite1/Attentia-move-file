@@ -501,9 +501,6 @@ End {
         if ($sendMailToUser) {
             Write-Verbose 'Send e-mail to the user'
 
-            if ($counter.TotalErrors) {
-                $mailParams.Bcc = $ScriptAdmin
-            }
             Send-MailHC @mailParams
         }
         else {
