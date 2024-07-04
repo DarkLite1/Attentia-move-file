@@ -497,7 +497,25 @@ End {
         }
 
         Get-ScriptRuntimeHC -Stop
-        Send-MailHC @mailParams
+
+        if ($sendMailToUser) {
+            Write-Verbose 'Send e-mail to the user'
+
+            if ($counter.TotalErrors) {
+                $mailParams.Bcc = $ScriptAdmin
+            }
+            Send-MailHC @mailParams
+        }
+        else {
+            Write-Verbose 'Send no e-mail to the user'
+
+            if ($counter.TotalErrors) {
+                Write-Verbose 'Send e-mail to admin only with errors'
+
+                $mailParams.To = $ScriptAdmin
+                Send-MailHC @mailParams
+            }
+        }
         #endregion
     }
     catch {
