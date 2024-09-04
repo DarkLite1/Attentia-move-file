@@ -255,22 +255,50 @@ Process {
                 #endregion
 
                 #region Move file
-                $moveParams = @{
+
+                #region Test duplicate file in destination folder
+                $joinParams = @{
+                    Path      = $result.DestinationFolder
+                    ChildPath = $result.SourceFile.Name
+                }
+                $destinationFilePath = Join-Path  @joinParams
+
+                if (
+                    Test-Path -LiteralPath $destinationFilePath -PathType 'Leaf'
+                ) {
+                    if ($file.Option.OverwriteFile) {
+                        Write-Verbose "Remove duplicate file '$destinationFilePath' in destination folder"
+
+                        Remove-Item -LiteralPath $destinationFilePath -EA Stop
+                        $result.Action += 'duplicate file removed in destination folder'
+                    }
+                    else {
+                        throw "Duplicate file '$destinationFilePath' found in the destination folder. Use 'Option.OverwriteFile' if needed."
+                    }
+                }
+                #endregion
+
+                #region Copy source file to destination
+                $copyParams = @{
                     LiteralPath = $result.SourceFile.FullName
                     Destination = $result.DestinationFolder
                     ErrorAction = 'Stop'
                 }
 
-                if ($file.Option.OverwriteFile) {
-                    $moveParams.Force = $true
-                }
+                Write-Verbose "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
 
-                Write-Verbose "Move file '$($moveParams.LiteralPath)' to '$($moveParams.Destination)'"
+                Copy-Item @copyParams
 
-                Move-Item @moveParams
+                $result.Action += 'file copied to destination'
+                #endregion
 
-                $result.Action += 'file moved'
+                #region Remove source file
+                Remove-Item -LiteralPath $copyParams.LiteralPath -EA Stop
+                $result.Action += 'source file removed'
+                #endregion
+
                 $result.Moved = $true
+
                 #endregion
             }
             catch {

@@ -317,7 +317,7 @@ Describe 'move files' {
                         Successful        = $true
                         CompanyCode       = $testNewInputFile.Destination[0].CompanyCode
                         LocationCode      = $testNewInputFile.Destination[0].locationCode
-                        Action            = 'created destination folder, file moved'
+                        Action            = 'created destination folder, file copied to destination, source file removed'
                         Error             = ''
                     }
                     @{
@@ -328,7 +328,7 @@ Describe 'move files' {
                         Successful        = $true
                         CompanyCode       = $testNewInputFile.Destination[1].CompanyCode
                         LocationCode      = $testNewInputFile.Destination[1].locationCode
-                        Action            = 'created destination folder, file moved'
+                        Action            = 'created destination folder, file copied to destination, source file removed'
                         Error             = ''
                     }
                 )
@@ -369,7 +369,7 @@ Describe 'move files' {
                 ($Attachments -like '*- Log.xlsx') -and
                 ($Message -like "*table*Files in source folder*2*Files moved*2*")
             }
-        } -Tag test
+        }
     }
     Context 'to the NoMatchFolderName when' {
         Context 'there is no match with CompanyCode and LocationCode' {
@@ -439,40 +439,58 @@ Context 'when Option.OverwriteFile is' {
             }
         )
 
-        $testFiles = @(
-            '8888_A_555_a.pdf'
-        ) | ForEach-Object {
-            New-Item -Path $testNewInputFile.SourceFolder -Name $_ -ItemType File
-        }
+        $null = New-Item $testNewInputFile.Destination.Folder -ItemType Directory
 
-        Mock Move-Item
+        $testSourceFile = New-Item -Path $testNewInputFile.SourceFolder -Name '8888_A_555_a.pdf' -ItemType File
+        $testDestinationFile = Join-Path $testNewInputFile.Destination.Folder '8888_A_555_a.pdf'
+
+        $null = New-Item -Path $testDestinationFile -ItemType File
     }
     Context 'false' {
-        It 'the destination file is not overwritten' {
+        BeforeAll {
             $testNewInputFile.Option.OverwriteFile = $false
 
             $testNewInputFile | ConvertTo-Json -Depth 7 |
             Out-File @testOutParams
 
-            .$testScript @testParams
+            $testResult = .$testScript @testParams
+        }
+        It 'the source file is not removed' {
+            $testSourceFile | Should -Exist
+        }
+        It 'the destination file is not removed' {
+            $testDestinationFile | Should -Exist
+        }
+        It 'the Excel file contains an error row' {
+            $testExcelLogFile = Get-ChildItem $testParams.LogFolder -File -Recurse -Filter '* - Log.xlsx'
 
-            Should -Invoke Move-Item -Times 1 -Exactly -ParameterFilter {
-                (-not $Force)
-            }
+            $actual = Import-Excel -Path $testExcelLogFile.FullName -WorksheetName 'Overview'
+
+            $actual.Error | Should -Be "Duplicate file '$testDestinationFile' found in the destination folder. Use 'Option.OverwriteFile' if needed."
         }
     }
     Context 'true' {
-        It 'the destination file is not overwritten' {
+        BeforeAll {
             $testNewInputFile.Option.OverwriteFile = $true
 
             $testNewInputFile | ConvertTo-Json -Depth 7 |
             Out-File @testOutParams
 
-            .$testScript @testParams
+            $testResult = .$testScript @testParams
+        }
+        It 'the source file is removed' {
+            $testSourceFile | Should -Not -Exist
+        }
+        It 'the destination file is overwritten' {
+            $testDestinationFile | Should -Exist
+        }
+        It 'the Excel file contains a duplicate file row' {
+            $testExcelLogFile = Get-ChildItem $testParams.LogFolder -File -Recurse -Filter '* - Log.xlsx'
 
-            Should -Invoke Move-Item -Times 1 -Exactly -ParameterFilter {
-                ($Force)
-            }
+            $actual = Import-Excel -Path $testExcelLogFile.FullName -WorksheetName 'Overview'
+
+            $actual.Action | Should -BeLike '*duplicate file removed in destination folder*'
+            $actual.Error | Should -BeNullOrEmpty
         }
     }
 }
